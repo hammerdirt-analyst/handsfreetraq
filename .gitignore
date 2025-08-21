@@ -1,0 +1,34 @@
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Environment files
+.env
+.env.*
+
+# Conda/venv
+.venv/
+venv/
+*.conda
+
+# OS cruft
+.DS_Store
+Thumbs.db
+
+# PyInstaller
+build/
+dist/
+*.spec
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Logs
+*.log
+
+# Outputs
+reports/
+*.pdf
+*.docx

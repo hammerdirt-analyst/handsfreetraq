@@ -1,0 +1,92 @@
+==================================================================
+Arborist Agent — Intent/Domain/Coordinator Runner
+Started: 2025-08-21T01:30:56Z
+LLM_BACKEND: openai
+OPENAI_MODEL: gpt-4o-mini
+OUTLINES_VERSION: ?
+PYTHON: 3.11.13
+==================================================================
+
+================================================================
+[2025-08-21T01:30:56Z] PHRASE
+----------------------------------------------------------------
+Utterance: "my name is roger erismann"
+Intent (direct): PROVIDE_DATA
+Domains (direct): ['customer_info']
+Intent (coordinator): PROVIDE_DATA
+Domains (coordinator): ['customer_info']
+[OK] intent match
+
+[OK] domains — sets match
+
+Provided fields (coordinator): customer_info.name
+[OK] PHRASE OK
+
+================================================================
+[2025-08-21T01:31:09Z] PHRASE
+----------------------------------------------------------------
+Utterance: "customer address is 12 oak ave, san jose ca 95112"
+Intent (direct): PROVIDE_DATA
+Domains (direct): ['customer_info']
+Intent (coordinator): PROVIDE_DATA
+Domains (coordinator): ['customer_info']
+[OK] intent match
+
+[OK] domains — sets match
+
+Provided fields (coordinator): customer_info.address.city, customer_info.address.postal_code, customer_info.address.state, customer_info.address.street
+[OK] PHRASE OK
+
+================================================================
+[2025-08-21T01:31:16Z] PHRASE
+----------------------------------------------------------------
+Utterance: "dbh is 24 inches and height 60 ft"
+Intent (direct): PROVIDE_DATA
+Domains (direct): ['tree_description']
+Intent (coordinator): PROVIDE_DATA
+Domains (coordinator): ['tree_description']
+[OK] intent match
+
+[OK] domains — sets match
+
+Provided fields (coordinator): tree_description.dbh_in, tree_description.height_ft
+[OK] PHRASE OK
+
+================================================================
+[2025-08-21T01:31:22Z] PHRASE
+----------------------------------------------------------------
+Utterance: "give me a short summary"
+Intent (direct): REQUEST_SUMMARY
+Intent (coordinator): REQUEST_SUMMARY
+[OK] intent match
+
+[OK] domains — skipped (non PROVIDE_DATA)
+
+[OK] PHRASE OK
+
+================================================================
+[2025-08-21T01:31:23Z] PHRASE
+----------------------------------------------------------------
+Utterance: "what's left?"
+Intent (direct): WHAT_IS_LEFT
+Intent (coordinator): WHAT_IS_LEFT
+[OK] intent match
+
+[OK] domains — skipped (non PROVIDE_DATA)
+
+[OK] PHRASE OK
+
+================================================================
+[2025-08-21T01:31:25Z] PHRASE
+----------------------------------------------------------------
+Utterance: "thanks!"
+Intent (direct): SMALL_TALK
+Intent (coordinator): SMALL_TALK
+[OK] intent match
+
+[OK] domains — skipped (non PROVIDE_DATA)
+
+[OK] PHRASE OK
+
+
+Summary: 6 phrases — 6 OK, 0 with mismatches.
