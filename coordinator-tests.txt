@@ -1,129 +1,5 @@
 ================================================================
-[2025-08-20T21:52:14Z] TURN
-----------------------------------------------------------------
-{
-  "utterance": "my name is roger erismann",
-  "intent": "SMALL_TALK",
-  "routed_to": "None",
-  "ok": false,
-  "result": {
-    "stub": "UNHANDLED_INTENT"
-  },
-  "error": null
-}
-
-================================================================
-[2025-08-20T21:52:18Z] TURN
-----------------------------------------------------------------
-{
-  "utterance": "customer address is 12 oak ave, san jose ca 95112",
-  "intent": "PROVIDE_DATA",
-  "routed_to": "LLM(domain) → direct extractors",
-  "ok": true,
-  "result": {
-    "updates": {
-      "customer_info": {
-        "name": "Not provided",
-        "company": "Not provided",
-        "phone": "Not provided",
-        "email": "Not provided",
-        "address": {
-          "street": "12 oak ave",
-          "city": "san jose",
-          "state": "ca",
-          "postal_code": "95112",
-          "country": "Not provided"
-        }
-      }
-    },
-    "provided_fields": [
-      "customer_info.address.city",
-      "customer_info.address.postal_code",
-      "customer_info.address.state",
-      "customer_info.address.street"
-    ],
-    "domains": [
-      "customer_info"
-    ]
-  },
-  "error": null
-}
-
-================================================================
-[2025-08-20T21:52:22Z] TURN
-----------------------------------------------------------------
-{
-  "utterance": "dbh is 24 inches and height 60 ft",
-  "intent": "PROVIDE_DATA",
-  "routed_to": "LLM(domain) → direct extractors",
-  "ok": true,
-  "result": {
-    "updates": {
-      "tree_description": {
-        "type_common": "Not provided",
-        "type_scientific": "Not provided",
-        "height_ft": "60 ft",
-        "canopy_width_ft": "Not provided",
-        "crown_shape": "Not provided",
-        "dbh_in": "24 in",
-        "trunk_notes": "Not provided"
-      }
-    },
-    "provided_fields": [
-      "tree_description.dbh_in",
-      "tree_description.height_ft"
-    ],
-    "domains": [
-      "tree_description"
-    ]
-  },
-  "error": null
-}
-
-================================================================
-[2025-08-20T21:52:23Z] TURN
-----------------------------------------------------------------
-{
-  "utterance": "give me a short summary",
-  "intent": "REQUEST_SUMMARY",
-  "routed_to": "ReportNode",
-  "ok": false,
-  "result": {
-    "stub": "SUMMARY_NOT_IMPLEMENTED"
-  },
-  "error": null
-}
-
-================================================================
-[2025-08-20T21:52:24Z] TURN
-----------------------------------------------------------------
-{
-  "utterance": "what's left?",
-  "intent": "WHAT_IS_LEFT",
-  "routed_to": "WhatsLeft",
-  "ok": false,
-  "result": {
-    "stub": "WHATS_LEFT_NOT_IMPLEMENTED"
-  },
-  "error": null
-}
-
-================================================================
-[2025-08-20T21:52:24Z] TURN
-----------------------------------------------------------------
-{
-  "utterance": "thanks!",
-  "intent": "SMALL_TALK",
-  "routed_to": "None",
-  "ok": false,
-  "result": {
-    "stub": "UNHANDLED_INTENT"
-  },
-  "error": null
-}
-
-================================================================
-[2025-08-20T22:20:49Z] TURN
+[2025-08-21T07:10:36Z] TURN
 ----------------------------------------------------------------
 {
   "utterance": "my name is roger erismann",
@@ -157,7 +33,7 @@
 }
 
 ================================================================
-[2025-08-20T22:20:54Z] TURN
+[2025-08-21T07:10:41Z] TURN
 ----------------------------------------------------------------
 {
   "utterance": "customer address is 12 oak ave, san jose ca 95112",
@@ -194,7 +70,7 @@
 }
 
 ================================================================
-[2025-08-20T22:20:58Z] TURN
+[2025-08-21T07:10:46Z] TURN
 ----------------------------------------------------------------
 {
   "utterance": "dbh is 24 inches and height 60 ft",
@@ -225,7 +101,70 @@
 }
 
 ================================================================
-[2025-08-20T22:20:59Z] TURN
+[2025-08-21T07:10:52Z] TURN
+----------------------------------------------------------------
+{
+  "utterance": "site use is playground; foot traffic is high",
+  "intent": "PROVIDE_DATA",
+  "routed_to": "LLM(domain) → direct extractors",
+  "ok": true,
+  "result": {
+    "updates": {
+      "area_description": {
+        "context": "Not provided",
+        "other_context_note": "Not provided",
+        "site_use": "playground",
+        "foot_traffic_level": "high"
+      },
+      "risks": {
+        "items": []
+      }
+    },
+    "provided_fields": [
+      "area_description.foot_traffic_level",
+      "area_description.site_use"
+    ],
+    "domains": [
+      "area_description",
+      "risks"
+    ]
+  },
+  "error": null
+}
+
+================================================================
+[2025-08-21T07:10:55Z] TURN
+----------------------------------------------------------------
+{
+  "utterance": "risk: falling branches likely; severity high; rationale over walkway",
+  "intent": "PROVIDE_DATA",
+  "routed_to": "LLM(domain) → direct extractors",
+  "ok": true,
+  "result": {
+    "updates": {
+      "risks": {
+        "items": [
+          {
+            "description": "falling branches",
+            "likelihood": "likely",
+            "severity": "high",
+            "rationale": "over walkway"
+          }
+        ]
+      }
+    },
+    "provided_fields": [
+      "risks.items"
+    ],
+    "domains": [
+      "risks"
+    ]
+  },
+  "error": null
+}
+
+================================================================
+[2025-08-21T07:10:57Z] TURN
 ----------------------------------------------------------------
 {
   "utterance": "give me a short summary",
@@ -239,151 +178,7 @@
 }
 
 ================================================================
-[2025-08-20T22:21:00Z] TURN
-----------------------------------------------------------------
-{
-  "utterance": "what's left?",
-  "intent": "WHAT_IS_LEFT",
-  "routed_to": "WhatsLeft",
-  "ok": false,
-  "result": {
-    "stub": "WHATS_LEFT_NOT_IMPLEMENTED"
-  },
-  "error": null
-}
-
-================================================================
-[2025-08-20T22:21:01Z] TURN
-----------------------------------------------------------------
-{
-  "utterance": "thanks!",
-  "intent": "SMALL_TALK",
-  "routed_to": "None",
-  "ok": false,
-  "result": {
-    "stub": "UNHANDLED_INTENT"
-  },
-  "error": null
-}
-
-================================================================
-[2025-08-21T01:31:09Z] TURN
-----------------------------------------------------------------
-{
-  "utterance": "my name is roger erismann",
-  "intent": "PROVIDE_DATA",
-  "routed_to": "LLM(domain) → direct extractors",
-  "ok": true,
-  "result": {
-    "updates": {
-      "customer_info": {
-        "name": "roger erismann",
-        "company": "Not provided",
-        "phone": "Not provided",
-        "email": "Not provided",
-        "address": {
-          "street": "Not provided",
-          "city": "Not provided",
-          "state": "Not provided",
-          "postal_code": "Not provided",
-          "country": "Not provided"
-        }
-      }
-    },
-    "provided_fields": [
-      "customer_info.name"
-    ],
-    "domains": [
-      "customer_info"
-    ]
-  },
-  "error": null
-}
-
-================================================================
-[2025-08-21T01:31:16Z] TURN
-----------------------------------------------------------------
-{
-  "utterance": "customer address is 12 oak ave, san jose ca 95112",
-  "intent": "PROVIDE_DATA",
-  "routed_to": "LLM(domain) → direct extractors",
-  "ok": true,
-  "result": {
-    "updates": {
-      "customer_info": {
-        "name": "Not provided",
-        "company": "Not provided",
-        "phone": "Not provided",
-        "email": "Not provided",
-        "address": {
-          "street": "12 oak ave",
-          "city": "san jose",
-          "state": "ca",
-          "postal_code": "95112",
-          "country": "Not provided"
-        }
-      }
-    },
-    "provided_fields": [
-      "customer_info.address.city",
-      "customer_info.address.postal_code",
-      "customer_info.address.state",
-      "customer_info.address.street"
-    ],
-    "domains": [
-      "customer_info"
-    ]
-  },
-  "error": null
-}
-
-================================================================
-[2025-08-21T01:31:22Z] TURN
-----------------------------------------------------------------
-{
-  "utterance": "dbh is 24 inches and height 60 ft",
-  "intent": "PROVIDE_DATA",
-  "routed_to": "LLM(domain) → direct extractors",
-  "ok": true,
-  "result": {
-    "updates": {
-      "tree_description": {
-        "type_common": "Not provided",
-        "type_scientific": "Not provided",
-        "height_ft": "60 ft",
-        "canopy_width_ft": "Not provided",
-        "crown_shape": "Not provided",
-        "dbh_in": "24 in",
-        "trunk_notes": "Not provided"
-      }
-    },
-    "provided_fields": [
-      "tree_description.dbh_in",
-      "tree_description.height_ft"
-    ],
-    "domains": [
-      "tree_description"
-    ]
-  },
-  "error": null
-}
-
-================================================================
-[2025-08-21T01:31:23Z] TURN
-----------------------------------------------------------------
-{
-  "utterance": "give me a short summary",
-  "intent": "REQUEST_SUMMARY",
-  "routed_to": "ReportNode",
-  "ok": false,
-  "result": {
-    "stub": "SUMMARY_NOT_IMPLEMENTED"
-  },
-  "error": null
-}
-
-================================================================
-[2025-08-21T01:31:25Z] TURN
+[2025-08-21T07:10:59Z] TURN
 ----------------------------------------------------------------
 {
   "utterance": "what's left?",
@@ -423,17 +218,14 @@
       ],
       "area_description": [
         "area_description.context",
-        "area_description.foot_traffic_level",
         "area_description.narratives",
-        "area_description.other_context_note",
-        "area_description.site_use"
+        "area_description.other_context_note"
       ],
       "targets": [
         "targets.items",
         "targets.narratives"
       ],
       "risks": [
-        "risks.items",
         "risks.narratives"
       ],
       "recommendations": [
@@ -462,7 +254,7 @@
 }
 
 ================================================================
-[2025-08-21T01:31:26Z] TURN
+[2025-08-21T07:11:00Z] TURN
 ----------------------------------------------------------------
 {
   "utterance": "thanks!",

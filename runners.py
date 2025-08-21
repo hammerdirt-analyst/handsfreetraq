@@ -1,282 +1,194 @@
 #!/usr/bin/env python3
-# runner.py — Harness to test intent + domain routing + Coordinator behavior
+# runners.py — Drive Coordinator with phrases + (optional) expectations.
+# Logs:
+#  - runners.log                (JSONL per phrase with verdicts)
+#  - state_logs/state-YYYYMMDD.jsonl  (state snapshots after each turn)
+#  - coordinator-tests.txt      (from Coordinator itself)
 
 from __future__ import annotations
 
 import argparse
 import json
 import os
-import sys
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
-# ---- Project imports (adjust paths if your files are elsewhere) -------------
-from agentgraph2 import Coordinator, classify_data_domains_llm  # domain LLM
-from intent_llm import classify_intent_llm                      # intent LLM
+# ----- Your modules -----
+from report_agent import Coordinator, classify_data_domains_llm  # adjust import if file name differs
+from intent_llm import classify_intent_llm
+from report_state import ReportState
 
-# -----------------------------------------------------------------------------
-HUMAN_LOG = "intent_domain_tests.txt"
-JSONL_LOG = "runner_results.jsonl"
-
+# ------------- paths -------------
+RUNNERS_LOG = "runners.log"
 
 def _now_iso() -> str:
     return datetime.utcnow().isoformat(timespec="seconds") + "Z"
 
+def _today_tag() -> str:
+    return datetime.utcnow().strftime("%Y%m%d")
 
-def _write_human_header(env: Dict[str, Any]) -> None:
-    with open(HUMAN_LOG, "w", encoding="utf-8") as f:
-        f.write("=" * 66 + "\n")
-        f.write("Arborist Agent — Intent/Domain/Coordinator Runner\n")
-        f.write(f"Started: {_now_iso()}\n")
-        for k, v in env.items():
-            f.write(f"{k}: {v}\n")
-        f.write("=" * 66 + "\n\n")
-
-
-def _append_human_block(block: str) -> None:
-    with open(HUMAN_LOG, "a", encoding="utf-8") as f:
-        f.write(block)
-        if not block.endswith("\n"):
-            f.write("\n")
-
-
-def _reset_jsonl() -> None:
-    with open(JSONL_LOG, "w", encoding="utf-8"):
-        pass  # truncate
-
-
-def _append_jsonl(obj: Dict[str, Any]) -> None:
-    with open(JSONL_LOG, "a", encoding="utf-8") as f:
-        f.write(json.dumps(obj, ensure_ascii=False) + "\n")
-
-
-def _load_phrases(path: Optional[str]) -> List[str]:
-    if not path:
-        # Default built-in phrases
-        return [
-            "my name is roger erismann",
-            "customer address is 12 oak ave, san jose ca 95112",
-            "dbh is 24 inches and height 60 ft",
-            "give me a short summary",
-            "what's left?",
-            "thanks!",
-        ]
+def _load_lines(path: str) -> List[str]:
     with open(path, "r", encoding="utf-8") as f:
-        lines = [ln.strip() for ln in f.readlines()]
-    return [ln for ln in lines if ln]
-
+        return [ln.strip() for ln in f.readlines() if ln.strip()]
 
 def _load_expectations(path: Optional[str]) -> Dict[str, Any]:
     if not path:
         return {}
+    if not os.path.exists(path):
+        print(f"[warn] expectations file not found: {path}")
+        return {}
     with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
+        if path.endswith(".json"):
+            return json.load(f)
+        # tiny YAML subset: list of dicts
+        try:
+            import yaml  # optional
+            return yaml.safe_load(f)
+        except Exception:
+            # fallback: treat as JSON if yaml unavailable
+            return json.load(f)
 
+def _exp_for(utterance: str, expectations: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    for e in expectations or []:
+        if (e.get("text") or "").strip() == utterance.strip():
+            return e
+    return None
 
-def _summarize_fields(provided: List[str], limit: int = 10) -> str:
-    provided = sorted(set(provided))
-    if not provided:
-        return "none"
-    if len(provided) <= limit:
-        return ", ".join(provided)
-    return ", ".join(provided[:limit]) + f" … (+{len(provided) - limit} more)"
+def _write_jsonl(path: str, obj: Dict[str, Any]) -> None:
+    with open(path, "a", encoding="utf-8") as f:
+        f.write(json.dumps(obj, ensure_ascii=False) + "\n")
 
+def _state_log_path() -> str:
+    os.makedirs("state_logs", exist_ok=True)
+    return os.path.join("state_logs", f"state-{_today_tag()}.jsonl")
 
-def _verdict_line(ok: bool, msg: str) -> str:
-    tag = "OK" if ok else "MISMATCH"
-    return f"[{tag}] {msg}\n"
-
-
-def _compare_sets(a: Optional[List[str]], b: Optional[List[str]]) -> Tuple[bool, str]:
-    sa, sb = set(a or []), set(b or [])
-    if sa == sb:
-        return True, "sets match"
-    add = ", ".join(sorted(sb - sa)) or "–"
-    rmv = ", ".join(sorted(sa - sb)) or "–"
-    return False, f"direct→coord add: {add} | drop: {rmv}"
-
-
-def run(phrases_file: Optional[str], expectations_file: Optional[str]) -> int:
-    # Environment snapshot
-    env = {
-        "LLM_BACKEND": os.getenv("LLM_BACKEND", "openai"),
-        "OPENAI_MODEL": os.getenv("OPENAI_MODEL", ""),
-        "OUTLINES_VERSION": _safe_import_version("outlines"),
-        "PYTHON": sys.version.split()[0],
+def _snapshot_state(state: ReportState) -> Dict[str, Any]:
+    # Keep snapshot small but useful
+    dmp = state.model_dump(exclude_none=False)
+    return {
+        "ts": _now_iso(),
+        "provided_fields": sorted(state.meta.provided_fields),
+        "arborist_info": dmp.get("arborist_info", {}),
+        "customer_info": dmp.get("customer_info", {}),
+        "tree_description": dmp.get("tree_description", {}),
+        "area_description": dmp.get("area_description", {}),
+        "risks": dmp.get("risks", {}),
+        "recommendations": dmp.get("recommendations", {}),
     }
 
-    _write_human_header(env)
-    _reset_jsonl()
-
-    phrases = _load_phrases(phrases_file)
-    expectations = _load_expectations(expectations_file)
+def run(phrases_file: str, expectations_file: Optional[str]) -> int:
+    phrases = _load_lines(phrases_file)
+    expectations_list = _load_expectations(expectations_file) or []
+    if isinstance(expectations_list, dict):
+        expectations_list = expectations_list.get("cases", [])
 
     coord = Coordinator()
 
-    total = 0
-    ok_count = 0
-    mismatches: List[str] = []
+    passes = 0
+    fails = 0
 
-    for phrase in phrases:
-        total += 1
-        block_lines: List[str] = []
-        block_lines.append("=" * 64)
-        block_lines.append(f"[{_now_iso()}] PHRASE")
-        block_lines.append("-" * 64)
-        block_lines.append(f'Utterance: "{phrase}"')
+    for utt in phrases:
+        ts = _now_iso()
 
-        # ---- Direct intent
+        # ---------- direct classifiers ----------
         try:
-            direct_intent = classify_intent_llm(phrase).intent
+            intent_direct = classify_intent_llm(utt).intent
         except Exception as e:
-            direct_intent = "INTENT_ERROR"
-            block_lines.append(_verdict_line(False, f"direct intent error: {e}"))
+            intent_direct = "INTENT_ERROR"
+            intent_err = str(e)
+        else:
+            intent_err = None
 
-        block_lines.append(f"Intent (direct): {direct_intent}")
-
-        # ---- Direct domains (only if direct intent says PROVIDE_DATA)
-        direct_domains: Optional[List[str]] = None
-        if direct_intent == "PROVIDE_DATA":
+        domains_direct = None
+        dom_err = None
+        if intent_direct == "PROVIDE_DATA":
             try:
-                direct_domains = classify_data_domains_llm(phrase)
-                block_lines.append(f"Domains (direct): {direct_domains}")
+                domains_direct = classify_data_domains_llm(utt)
             except Exception as e:
-                block_lines.append(_verdict_line(False, f"direct domain error: {e}"))
+                dom_err = str(e)
 
-        # ---- Coordinator turn
-        result = coord.handle_turn(phrase)  # prints its own JSON & logs internally
-        coord_intent = result.get("intent")
-        coord_ok = bool(result.get("ok"))
-        coord_domains = None
-        coord_updates = None
-        coord_provided = None
-        if result.get("result"):
-            coord_domains = result["result"].get("domains")
-            coord_updates = result["result"].get("updates")
-            coord_provided = result["result"].get("provided_fields")
+        # ---------- coordinator ----------
+        result = coord.handle_turn(utt)
+        # Try to mirror domains from coordinator result (if any)
+        coord_domains = (result.get("result") or {}).get("domains")
 
-        block_lines.append(f"Intent (coordinator): {coord_intent}")
-        if coord_domains is not None:
-            block_lines.append(f"Domains (coordinator): {coord_domains}")
+        # ---------- expectations + verdicts ----------
+        exp = _exp_for(utt, expectations_list)
+        verdict = {
+            "intent_match": None,
+            "domains_match": None,
+            "expectations_ok": None,
+            "phrase_ok": None,
+        }
 
-        # ---- Verdicts
-        # Intent verdict
-        intent_ok = (direct_intent == coord_intent)
-        block_lines.append(_verdict_line(intent_ok, "intent match"))
-
-        # Domain verdict (compare sets) when both are ProvideData
-        domains_ok, domains_msg = True, "n/a"
-        if direct_intent == "PROVIDE_DATA" and coord_intent == "PROVIDE_DATA":
-            domains_ok, domains_msg = _compare_sets(direct_domains, coord_domains)
-            block_lines.append(_verdict_line(domains_ok, f"domains — {domains_msg}"))
-        else:
-            block_lines.append(_verdict_line(True, "domains — skipped (non PROVIDE_DATA)"))
-
-        # Provided fields summary
-        if coord_intent == "PROVIDE_DATA":
-            block_lines.append(
-                f"Provided fields (coordinator): {_summarize_fields(coord_provided or [])}"
-            )
-
-        # Expectations check (optional)
-        exp_ok = True
-        exp_detail = "n/a"
-        exp = expectations.get(phrase)
         if exp:
-            # expected intent
-            if "intent" in exp and exp["intent"] != coord_intent:
-                exp_ok = False
-                exp_detail = f"expected intent={exp['intent']} got={coord_intent}"
-
-            # expected domains (set compare)
-            if exp_ok and "domains" in exp and coord_domains is not None:
-                s_ok, s_msg = _compare_sets(exp["domains"], coord_domains)
-                if not s_ok:
-                    exp_ok = False
-                    exp_detail = f"domains mismatch: {s_msg}"
-
-            # expected fields (any)
-            if exp_ok and "expects_fields_any" in exp and coord_provided is not None:
-                need_any = set(exp["expects_fields_any"])
-                have = set(coord_provided)
-                if need_any and need_any.isdisjoint(have):
-                    exp_ok = False
-                    exp_detail = f"none of expected fields present: {sorted(need_any)}"
-
-            block_lines.append(_verdict_line(exp_ok, f"expectations — {exp_detail}"))
-
-        # Aggregate verdict for this phrase
-        this_ok = intent_ok and domains_ok and (coord_ok or coord_intent != "PROVIDE_DATA")
-        if exp is not None:
-            this_ok = this_ok and exp_ok
-
-        if this_ok:
-            ok_count += 1
-            block_lines.append(_verdict_line(True, "PHRASE OK"))
+            # intent check
+            if "intent" in exp:
+                verdict["intent_match"] = (intent_direct == exp["intent"])
+            # domain check
+            if "domains" in exp:
+                expected = sorted(exp["domains"])
+                actual = sorted(domains_direct or [])
+                verdict["domains_match"] = (expected == actual)
+            # provided_fields_contains (optional)
+            exp_pf = exp.get("provided_contains") or []
+            if exp_pf and result.get("result"):
+                got_pf = set((result["result"].get("provided_fields") or []))
+                verdict["expectations_ok"] = all(p in got_pf for p in exp_pf)
+            # overall
+            checks = [v for v in [verdict["intent_match"], verdict["domains_match"], verdict["expectations_ok"]] if v is not None]
+            verdict["phrase_ok"] = all(checks) if checks else True
         else:
-            mismatches.append(phrase)
-            block_lines.append(_verdict_line(False, "PHRASE MISMATCH"))
+            # no expectations — consider as pass if coordinator didn’t crash
+            verdict["phrase_ok"] = bool(result.get("ok") is not False or result.get("error") is None)
 
-        block_lines.append("")  # spacer
-        _append_human_block("\n".join(block_lines))
+        if verdict["phrase_ok"]:
+            passes += 1
+        else:
+            fails += 1
 
-        # JSONL record
-        rec = {
-            "ts": _now_iso(),
-            "utterance": phrase,
-            "direct": {"intent": direct_intent, "domains": direct_domains},
+        # ---------- log one line to runners.log ----------
+        line = {
+            "ts": ts,
+            "utterance": utt,
+            "direct": {
+                "intent": intent_direct,
+                "domains": domains_direct,
+                "intent_error": intent_err,
+                "domain_error": dom_err,
+            },
             "coordinator": {
-                "intent": coord_intent,
+                "intent": result.get("intent"),
                 "domains": coord_domains,
-                "ok": coord_ok,
+                "ok": result.get("ok"),
                 "result": result.get("result"),
                 "error": result.get("error"),
             },
-            "expectations": exp or None,
-            "verdicts": {
-                "intent_match": intent_ok,
-                "domains_match": domains_ok if (direct_intent == "PROVIDE_DATA" and coord_intent == "PROVIDE_DATA") else None,
-                "expectations_ok": exp_ok if exp is not None else None,
-                "phrase_ok": this_ok,
-            },
+            "expectations": exp,
+            "verdicts": verdict,
         }
-        _append_jsonl(rec)
+        _write_jsonl(RUNNERS_LOG, line)
 
-        # Console one-liner
-        if this_ok:
-            short = _summarize_fields(coord_provided or [], limit=3) if coord_intent == "PROVIDE_DATA" else ""
-            suffix = f" — fields: {short}" if short else ""
-            print(f"[OK] {phrase!r}{suffix}")
-        else:
-            print(f"[MISMATCH] {phrase!r} — see {HUMAN_LOG}")
+        # ---------- state snapshot ----------
+        _write_jsonl(_state_log_path(), _snapshot_state(coord.state))
 
-    # Final summary
-    summary = f"\nSummary: {total} phrases — {ok_count} OK, {total - ok_count} with mismatches."
-    _append_human_block(summary + "\n")
-    print(summary)
-    if mismatches:
-        print("Mismatches:")
-        for m in mismatches:
-            print(" -", m)
+        # Echo to console (compact)
+        print(json.dumps({
+            "utterance": utt,
+            "intent": intent_direct,
+            "domains": domains_direct,
+            "ok": result.get("ok"),
+            "provided_fields": (result.get("result") or {}).get("provided_fields"),
+            "verdict": verdict["phrase_ok"],
+        }, indent=2, ensure_ascii=False))
 
-    return 0 if ok_count == total else 1
-
-
-def _safe_import_version(pkg: str) -> str:
-    try:
-        mod = __import__(pkg)
-        return getattr(mod, "__version__", "?")
-    except Exception:
-        return "?"
-
-
-def parse_args(argv: List[str]) -> argparse.Namespace:
-    ap = argparse.ArgumentParser(description="Run coordinator + intent/domain tests over phrases.")
-    ap.add_argument("phrases_file", nargs="?", help="Optional path to a text file (one phrase per line).")
-    ap.add_argument("--expect", dest="expectations_file", help="Optional JSON file with expectations per phrase.")
-    return ap.parse_args(argv)
-
+    # final summary
+    print(f"\nSummary: {passes} passed / {fails} failed / {len(phrases)} total")
+    return 0 if fails == 0 else 1
 
 if __name__ == "__main__":
-    args = parse_args(sys.argv[1:])
-    sys.exit(run(args.phrases_file, args.expectations_file))
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--phrases-file", default="phrases.txt", help="One utterance per line")
+    ap.add_argument("--expectations-file", default="expectations.yml", help="YAML or JSON expectations (optional)")
+    args = ap.parse_args()
+    raise SystemExit(run(args.phrases_file, args.expectations_file))

@@ -1,5 +1,5 @@
 ================================================================
-[2025-08-21T01:31:09Z] STATE SNAPSHOT
+[2025-08-21T07:10:36Z] STATE SNAPSHOT
 ----------------------------------------------------------------
 {
   "turn": {
@@ -41,7 +41,7 @@
 }
 
 ================================================================
-[2025-08-21T01:31:16Z] STATE SNAPSHOT
+[2025-08-21T07:10:41Z] STATE SNAPSHOT
 ----------------------------------------------------------------
 {
   "turn": {
@@ -86,7 +86,7 @@
 }
 
 ================================================================
-[2025-08-21T01:31:22Z] STATE SNAPSHOT
+[2025-08-21T07:10:46Z] STATE SNAPSHOT
 ----------------------------------------------------------------
 {
   "turn": {
@@ -125,7 +125,86 @@
 }
 
 ================================================================
-[2025-08-21T01:31:23Z] STATE SNAPSHOT
+[2025-08-21T07:10:52Z] STATE SNAPSHOT
+----------------------------------------------------------------
+{
+  "turn": {
+    "utterance": "site use is playground; foot traffic is high",
+    "intent": "PROVIDE_DATA",
+    "routed_to": "LLM(domain) → direct extractors",
+    "ok": true,
+    "result": {
+      "updates": {
+        "area_description": {
+          "context": "Not provided",
+          "other_context_note": "Not provided",
+          "site_use": "playground",
+          "foot_traffic_level": "high"
+        },
+        "risks": {
+          "items": []
+        }
+      },
+      "provided_fields": [
+        "area_description.foot_traffic_level",
+        "area_description.site_use"
+      ],
+      "domains": [
+        "area_description",
+        "risks"
+      ]
+    },
+    "error": null
+  },
+  "state_echo": {
+    "arborist_info.name": "Not provided",
+    "customer_info.address.city": "san jose",
+    "tree_description.dbh_in": "24 in",
+    "tree_description.height_ft": "60 ft"
+  }
+}
+
+================================================================
+[2025-08-21T07:10:55Z] STATE SNAPSHOT
+----------------------------------------------------------------
+{
+  "turn": {
+    "utterance": "risk: falling branches likely; severity high; rationale over walkway",
+    "intent": "PROVIDE_DATA",
+    "routed_to": "LLM(domain) → direct extractors",
+    "ok": true,
+    "result": {
+      "updates": {
+        "risks": {
+          "items": [
+            {
+              "description": "falling branches",
+              "likelihood": "likely",
+              "severity": "high",
+              "rationale": "over walkway"
+            }
+          ]
+        }
+      },
+      "provided_fields": [
+        "risks.items"
+      ],
+      "domains": [
+        "risks"
+      ]
+    },
+    "error": null
+  },
+  "state_echo": {
+    "arborist_info.name": "Not provided",
+    "customer_info.address.city": "san jose",
+    "tree_description.dbh_in": "24 in",
+    "tree_description.height_ft": "60 ft"
+  }
+}
+
+================================================================
+[2025-08-21T07:10:57Z] STATE SNAPSHOT
 ----------------------------------------------------------------
 {
   "turn": {
@@ -147,7 +226,7 @@
 }
 
 ================================================================
-[2025-08-21T01:31:25Z] STATE SNAPSHOT
+[2025-08-21T07:10:59Z] STATE SNAPSHOT
 ----------------------------------------------------------------
 {
   "turn": {
@@ -188,17 +267,14 @@
         ],
         "area_description": [
           "area_description.context",
-          "area_description.foot_traffic_level",
           "area_description.narratives",
-          "area_description.other_context_note",
-          "area_description.site_use"
+          "area_description.other_context_note"
         ],
         "targets": [
           "targets.items",
           "targets.narratives"
         ],
         "risks": [
-          "risks.items",
           "risks.narratives"
         ],
         "recommendations": [
@@ -234,7 +310,7 @@
 }
 
 ================================================================
-[2025-08-21T01:31:26Z] STATE SNAPSHOT
+[2025-08-21T07:11:00Z] STATE SNAPSHOT
 ----------------------------------------------------------------
 {
   "turn": {

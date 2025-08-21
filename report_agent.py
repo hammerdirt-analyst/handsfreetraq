@@ -10,15 +10,18 @@ from typing import Any, Dict, List, Optional, Tuple, Literal
 from intent_llm import classify_intent_llm
 
 # Outlines-backed model factory (same one you use in otest / structured probe)
-from models2 import ModelFactory
+from models import ModelFactory
 
 # Direct extractors (verbatim-only schema; each returns {"updates": {...}, "provided_fields": [...]})
-from models2 import (
+from models import (
     ArboristInfoExtractor,
     CustomerInfoExtractor,
     TreeDescriptionExtractor,
     RisksExtractor,
+    AreaDescriptionExtractor
 )
+
+
 
 # >>> State lives here <<<
 from report_state import ReportState
@@ -99,11 +102,19 @@ def _state_to_compact_echo(state: ReportState) -> Dict[str, Any]:
     }
 
 
-# -------------------- LLM data-domain classifier -----------------------------
+# -------------------- LLM data-domain classifier ----------------------
 
-DomainLabel = Literal["arborist_info", "customer_info", "tree_description", "risks"]
-
+# Keep domains aligned with the extractors/models you support
+from typing import Literal, List
 from pydantic import BaseModel, Field, ConfigDict
+
+DomainLabel = Literal[
+    "arborist_info",
+    "customer_info",
+    "tree_description",
+    "area_description",
+    "risks",
+]
 
 class DomainSchema(BaseModel):
     domains: List[DomainLabel] = Field(...)
@@ -113,15 +124,18 @@ def classify_data_domains_llm(text: str) -> List[str]:
     """One Outlines call via ModelFactory → list of domains to run."""
     model = ModelFactory.get()
     prompt = (
-        "You are a router for an arborist report agent. "
-        "From the user message, choose ALL relevant data sections from this set: "
-        "['arborist_info','customer_info','tree_description','risks'].\n"
-        "Output ONLY JSON matching: {\"domains\": [ ... ]}\n\n"
+        "You are a router for an arborist report agent.\n"
+        "From the user message, choose ALL relevant sections from:\n"
+        "['arborist_info','customer_info','tree_description','area_description','risks'].\n"
+        "Return ONLY JSON matching exactly: {\"domains\": [ ... ]}\n"
+        "- Select a section if the message contains data for it (even partial).\n"
+        "- Do not guess or add sections without evidence in the text.\n\n"
         f"User message:\n{text}\n"
     )
     raw = model(prompt, DomainSchema, temperature=0.0, max_tokens=64)
     parsed: DomainSchema = DomainSchema.model_validate_json(raw)
     return list(parsed.domains or [])
+
 
 
 # ----------------------------- WHAT'S LEFT ----------------------------------
@@ -167,6 +181,7 @@ def _handle_not_implemented(intent: str) -> Tuple[str, Dict[str, Any]]:
     return mapping.get(intent, ("None", {"stub": "UNHANDLED_INTENT"}))
 
 
+
 class Coordinator:
     """
     Minimal coordinator with persistent ReportState:
@@ -184,7 +199,34 @@ class Coordinator:
             "customer_info": CustomerInfoExtractor(),
             "tree_description": TreeDescriptionExtractor(),
             "risks": RisksExtractor(),
+            "area_description":AreaDescriptionExtractor()
         }
+        try:
+            from test_data import ARBORIST_PROFILE  # local dev only
+            self.apply_arborist_profile(ARBORIST_PROFILE)
+        except Exception:
+            pass
+
+        # --- Drop-in: seed state with a local Arborist profile ---------------
+        def apply_arborist_profile(self, profile: dict | None) -> None:
+            """
+            Merge a fully-populated arborist profile into state at startup.
+            Expects shape matching ArboristInfo (not the envelope).
+            """
+            if not profile:
+                return
+            # Wrap into the standard "updates" envelope and merge.
+            envelope = {"updates": {"arborist_info": dict(profile)}}
+            # We want the local device profile to win on first load.
+            self.state = self.state.model_merge_updates(
+                envelope,
+                policy="last_write",
+                turn_id="bootstrap",
+                timestamp="bootstrap",
+                domain="arborist_info",
+                extractor="local_profile",
+                model_name="local_profile",
+            )
 
     def _merge_into_state(self, updates_aggregate: Dict[str, Any]) -> None:
         """Deep-merge dict updates into ReportState (pydantic-friendly)."""

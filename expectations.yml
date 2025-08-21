@@ -1,0 +1,44 @@
+# Minimal expectations per phrase (order matters only for humans; we match by exact text)
+- text: "my name is roger erismann"
+  intent: PROVIDE_DATA
+  domains: [arborist_info]
+  provided_contains:
+    - arborist_info.name
+
+- text: "customer address is 12 oak ave, san jose ca 95112"
+  intent: PROVIDE_DATA
+  domains: [customer_info]
+  provided_contains:
+    - customer_info.address.street
+    - customer_info.address.city
+    - customer_info.address.state
+    - customer_info.address.postal_code
+
+- text: "dbh is 24 inches and height 60 ft"
+  intent: PROVIDE_DATA
+  domains: [tree_description]
+  provided_contains:
+    - tree_description.dbh_in
+    - tree_description.height_ft
+
+- text: "site use is playground; foot traffic is high"
+  intent: PROVIDE_DATA
+  domains: [area_description]
+  provided_contains:
+    - area_description.site_use
+    - area_description.foot_traffic_level
+
+- text: "risk: falling branches likely; severity high; rationale over walkway"
+  intent: PROVIDE_DATA
+  domains: [risks]
+  provided_contains:
+    - risks.items
+
+- text: "give me a short summary"
+  intent: REQUEST_SUMMARY
+
+- text: "what's left?"
+  intent: WHAT_IS_LEFT
+
+- text: "thanks!"
+  intent: SMALL_TALK

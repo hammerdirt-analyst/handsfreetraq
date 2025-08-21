@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field, ConfigDict
 
 # Reuse the exact same Outlines/OpenAI wiring you already use
 # If ModelFactory lives elsewhere, adjust import path accordingly.
-from models2 import ModelFactory  # <-- uses outlines.from_openai(...)
+from models import ModelFactory  # <-- uses outlines.from_openai(...)
 
 # ---------------- Fixed label set (must match Coordinator routing) ----------------
 IntentLabel = Literal[
