@@ -12,13 +12,8 @@ from models import ModelFactory  # <-- uses outlines.from_openai(...)
 
 # ---------------- Fixed label set (must match Coordinator routing) ----------------
 IntentLabel = Literal[
-    "PROVIDE_DATA",
-    "REQUEST_SUMMARY",
-    "REQUEST_REPORT",
-    "WHAT_IS_LEFT",
-    "ASK_FIELD",
-    "ASK_QUESTION",
-    "SMALL_TALK",
+    'PROVIDE_STATEMENT',
+    'REQUEST_SERVICE'
 ]
 
 @dataclass
@@ -48,31 +43,23 @@ def classify_intent_llm(utterance: str) -> IntentOutput:
 
     # Build prompt (short, stable, JSON-only)
     prompt = (
-        "You are an intent classifier for an arborist-report agent.\n"
-        "Return ONLY a JSON object that matches exactly:\n"
-        '{ "intent": "PROVIDE_DATA|REQUEST_SUMMARY|REQUEST_REPORT|WHAT_IS_LEFT|ASK_FIELD|ASK_QUESTION|SMALL_TALK" }\n'
+        "You are an intent router for an arborist-report agent.\n"
+        "Return ONLY one JSON object:\n"
+        '{ "intent": "PROVIDE_STATEMENT|REQUEST_SERVICE" }\n'
         "\n"
-        "BRIGHT-LINE RULE:\n"
-        "- If the user states ANY concrete report fact — first-person or third-person — choose PROVIDE_DATA.\n"
-        "  Facts include (but aren’t limited to): name, phone, email, address, license, species, DBH, height,\n"
-        "  canopy, crown shape, targets, risks, recommendations.\n"
+        "Definitions:\n"
+        "- PROVIDE_STATEMENT: user supplies factual or observational content intended for the report "
+        "(tree attributes, health, risks, recommendations, etc.).\n"
+        "- REQUEST_SERVICE: user asks for an action (summary, draft, correction, questions, discussion).\n"
         "\n"
-        "Other labels:\n"
-        "- REQUEST_SUMMARY: asks for a brief recap of the current state.\n"
-        "- REQUEST_REPORT: asks for the full report text.\n"
-        "- WHAT_IS_LEFT: asks what remains to be filled.\n"
-        "- ASK_FIELD: asks about a specific stored field (e.g., “what did you capture for DBH?”).\n"
-        "- ASK_QUESTION: general question about trees/site unrelated to stored fields.\n"
-        "- SMALL_TALK: greetings/thanks/acks with no report data.\n"
-        "\n"
-        "Examples (format -> intent):\n"
-        '  "my name is roger erismann" -> {"intent":"PROVIDE_DATA"}\n'
-        '  "customer address is 12 oak ave san jose ca 95112" -> {"intent":"PROVIDE_DATA"}\n'
-        '  "dbh is 24 inches" -> {"intent":"PROVIDE_DATA"}\n'
-        '  "give me a short summary" -> {"intent":"REQUEST_SUMMARY"}\n'
-        '  "what\'s left?" -> {"intent":"WHAT_IS_LEFT"}\n'
-        '  "what did you capture for DBH?" -> {"intent":"ASK_FIELD"}\n'
-        '  "thanks!" -> {"intent":"SMALL_TALK"}\n'
+        "Examples:\n"
+        '"dbh is 24 inches" -> {"intent":"PROVIDE_STATEMENT"}\n'
+        '"site use is playground; foot traffic is high" -> {"intent":"PROVIDE_STATEMENT"}\n'
+        '"recommend pruning to remove dead branches" -> {"intent":"PROVIDE_STATEMENT"}\n'
+        '"give me a short summary" -> {"intent":"REQUEST_SERVICE"}\n'
+        '"what’s left?" -> {"intent":"REQUEST_SERVICE"}\n'
+        '"make a draft report" -> {"intent":"REQUEST_SERVICE"}\n'
+        '"why do roots lift sidewalks?" -> {"intent":"REQUEST_SERVICE"}\n'
         "\n"
         f"Utterance: {text}\n"
     )
@@ -86,10 +73,7 @@ def classify_intent_llm(utterance: str) -> IntentOutput:
         raise RuntimeError(f"Intent LLM call failed: {e}")
 
     label = str(parsed.intent).strip().upper()
-    allowed = {
-        "PROVIDE_DATA", "REQUEST_SUMMARY", "REQUEST_REPORT",
-        "WHAT_IS_LEFT", "ASK_FIELD", "ASK_QUESTION", "SMALL_TALK"
-    }
+    allowed = {"PROVIDE_STATEMENT", "REQUEST_SERVICE"}
     if label not in allowed:
         raise RuntimeError(f"Intent LLM returned invalid label: {label!r}")
 

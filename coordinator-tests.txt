@@ -1,97 +1,151 @@
 ================================================================
-[2025-08-21T07:10:36Z] TURN
+[2025-08-22T22:32:37Z] CONTEXT_LOADED
 ----------------------------------------------------------------
 {
-  "utterance": "my name is roger erismann",
-  "intent": "PROVIDE_DATA",
-  "routed_to": "LLM(domain) → direct extractors",
+  "arborist_loaded": true,
+  "customer_loaded": true,
+  "location_loaded": true
+}
+
+================================================================
+[2025-08-22T22:32:47Z] TURN
+----------------------------------------------------------------
+{
+  "utterance": "recommend pruning to remove dead branches over the roof",
+  "intent": "PROVIDE_STATEMENT",
+  "domains": null,
+  "routed_to": "LLM(domain) → extractors (report-only)",
+  "ok": false,
+  "result": null,
+  "error": "ProvideData error: 1 validation error for DomainSchema\n  Invalid JSON: EOF while parsing a string at line 1 column 481 [type=json_invalid, input_value='{\"domains\":[\"risks\",\"tre..._description\",\"risks\",\"', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.11/v/json_invalid"
+}
+
+================================================================
+[2025-08-22T22:32:56Z] TURN
+----------------------------------------------------------------
+{
+  "utterance": "scope of pruning should include crown thinning for better airflow",
+  "intent": "PROVIDE_STATEMENT",
+  "domains": null,
+  "routed_to": "LLM(domain) → extractors (report-only)",
+  "ok": false,
+  "result": null,
+  "error": "ProvideData error: 1 validation error for DomainSchema\n  Invalid JSON: EOF while parsing a string at line 1 column 481 [type=json_invalid, input_value='{\"domains\":[\"risks\",\"tre..._description\",\"risks\",\"', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.11/v/json_invalid"
+}
+
+================================================================
+[2025-08-22T22:33:04Z] TURN
+----------------------------------------------------------------
+{
+  "utterance": "limitations include restricted access for large equipment",
+  "intent": "PROVIDE_STATEMENT",
+  "domains": [
+    "area_description"
+  ],
+  "routed_to": "LLM(domain) → extractors (report-only)",
   "ok": true,
   "result": {
     "updates": {
-      "customer_info": {
-        "name": "roger erismann",
-        "company": "Not provided",
-        "phone": "Not provided",
-        "email": "Not provided",
-        "address": {
-          "street": "Not provided",
-          "city": "Not provided",
-          "state": "Not provided",
-          "postal_code": "Not provided",
-          "country": "Not provided"
-        }
+      "area_description": {
+        "context": "Not provided",
+        "other_context_note": "Not provided",
+        "site_use": "Not provided",
+        "foot_traffic_level": "Not provided"
       }
     },
-    "provided_fields": [
-      "customer_info.name"
-    ],
+    "provided_fields": [],
     "domains": [
-      "customer_info"
+      "area_description"
     ]
   },
   "error": null
 }
 
 ================================================================
-[2025-08-21T07:10:41Z] TURN
+[2025-08-22T22:33:12Z] TURN
 ----------------------------------------------------------------
 {
-  "utterance": "customer address is 12 oak ave, san jose ca 95112",
-  "intent": "PROVIDE_DATA",
-  "routed_to": "LLM(domain) → direct extractors",
+  "utterance": "continued maintenance should involve annual inspections",
+  "intent": "PROVIDE_STATEMENT",
+  "domains": [
+    "area_description"
+  ],
+  "routed_to": "LLM(domain) → extractors (report-only)",
   "ok": true,
   "result": {
     "updates": {
-      "customer_info": {
-        "name": "Not provided",
-        "company": "Not provided",
-        "phone": "Not provided",
-        "email": "Not provided",
-        "address": {
-          "street": "12 oak ave",
-          "city": "san jose",
-          "state": "ca",
-          "postal_code": "95112",
-          "country": "Not provided"
-        }
+      "area_description": {
+        "context": "Not provided",
+        "other_context_note": "Not provided",
+        "site_use": "Not provided",
+        "foot_traffic_level": "Not provided"
       }
     },
-    "provided_fields": [
-      "customer_info.address.city",
-      "customer_info.address.postal_code",
-      "customer_info.address.state",
-      "customer_info.address.street"
-    ],
+    "provided_fields": [],
     "domains": [
-      "customer_info"
+      "area_description"
     ]
   },
   "error": null
 }
 
 ================================================================
-[2025-08-21T07:10:46Z] TURN
+[2025-08-22T22:33:21Z] TURN
 ----------------------------------------------------------------
 {
-  "utterance": "dbh is 24 inches and height 60 ft",
-  "intent": "PROVIDE_DATA",
-  "routed_to": "LLM(domain) → direct extractors",
+  "utterance": "recommend removal of the declining elm near the fence",
+  "intent": "PROVIDE_STATEMENT",
+  "domains": null,
+  "routed_to": "LLM(domain) → extractors (report-only)",
+  "ok": false,
+  "result": null,
+  "error": "ProvideData error: 1 validation error for DomainSchema\n  Invalid JSON: EOF while parsing a string at line 1 column 261 [type=json_invalid, input_value='{\"domains\":[\"risks\",\"ris...isks\",\"risks\",\"risks\",\"', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.11/v/json_invalid"
+}
+
+================================================================
+[2025-08-22T22:33:29Z] TURN
+----------------------------------------------------------------
+{
+  "utterance": "notes indicate pruning should be completed before storm season",
+  "intent": "PROVIDE_STATEMENT",
+  "domains": null,
+  "routed_to": "LLM(domain) → extractors (report-only)",
+  "ok": false,
+  "result": null,
+  "error": "ProvideData error: 1 validation error for DomainSchema\n  Invalid JSON: EOF while parsing a string at line 1 column 437 [type=json_invalid, input_value='{\"domains\":[\"tree_descri...s\",\"area_description\",\"', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.11/v/json_invalid"
+}
+
+================================================================
+[2025-08-22T22:33:41Z] TURN
+----------------------------------------------------------------
+{
+  "utterance": "pruning narrative suggests selective thinning to reduce weight",
+  "intent": "PROVIDE_STATEMENT",
+  "domains": [
+    "tree_description"
+  ],
+  "routed_to": "LLM(domain) → extractors (report-only)",
   "ok": true,
   "result": {
     "updates": {
       "tree_description": {
         "type_common": "Not provided",
         "type_scientific": "Not provided",
-        "height_ft": "60 ft",
+        "height_ft": "Not provided",
         "canopy_width_ft": "Not provided",
         "crown_shape": "Not provided",
-        "dbh_in": "24 in",
-        "trunk_notes": "Not provided"
+        "dbh_in": "Not provided",
+        "trunk_notes": "Not provided",
+        "roots": "Not provided",
+        "defects": "Not provided",
+        "general_observations": "pruning narrative suggests selective thinning to reduce weight",
+        "health_overview": "Not provided",
+        "pests_pathogens_observed": "Not provided",
+        "physiological_stress_signs": "Not provided"
       }
     },
     "provided_fields": [
-      "tree_description.dbh_in",
-      "tree_description.height_ft"
+      "tree_description.general_observations"
     ],
     "domains": [
       "tree_description"
@@ -101,168 +155,374 @@
 }
 
 ================================================================
-[2025-08-21T07:10:52Z] TURN
+[2025-08-22T22:33:49Z] TURN
 ----------------------------------------------------------------
 {
-  "utterance": "site use is playground; foot traffic is high",
-  "intent": "PROVIDE_DATA",
-  "routed_to": "LLM(domain) → direct extractors",
+  "utterance": "removal scope is limited to the east side due to property lines",
+  "intent": "PROVIDE_STATEMENT",
+  "domains": [
+    "area_description"
+  ],
+  "routed_to": "LLM(domain) → extractors (report-only)",
   "ok": true,
   "result": {
     "updates": {
       "area_description": {
         "context": "Not provided",
         "other_context_note": "Not provided",
-        "site_use": "playground",
-        "foot_traffic_level": "high"
-      },
-      "risks": {
-        "items": []
+        "site_use": "Not provided",
+        "foot_traffic_level": "Not provided"
       }
     },
-    "provided_fields": [
-      "area_description.foot_traffic_level",
-      "area_description.site_use"
-    ],
+    "provided_fields": [],
     "domains": [
-      "area_description",
-      "risks"
+      "area_description"
     ]
   },
   "error": null
 }
 
 ================================================================
-[2025-08-21T07:10:55Z] TURN
+[2025-08-22T22:33:56Z] TURN
 ----------------------------------------------------------------
 {
-  "utterance": "risk: falling branches likely; severity high; rationale over walkway",
-  "intent": "PROVIDE_DATA",
-  "routed_to": "LLM(domain) → direct extractors",
+  "utterance": "maintenance notes include mulching and irrigation adjustments",
+  "intent": "PROVIDE_STATEMENT",
+  "domains": [
+    "area_description"
+  ],
+  "routed_to": "LLM(domain) → extractors (report-only)",
   "ok": true,
   "result": {
     "updates": {
-      "risks": {
-        "items": [
-          {
-            "description": "falling branches",
-            "likelihood": "likely",
-            "severity": "high",
-            "rationale": "over walkway"
-          }
-        ]
+      "area_description": {
+        "context": "Not provided",
+        "other_context_note": "Not provided",
+        "site_use": "Not provided",
+        "foot_traffic_level": "Not provided"
       }
     },
-    "provided_fields": [
-      "risks.items"
-    ],
+    "provided_fields": [],
     "domains": [
-      "risks"
+      "area_description"
     ]
   },
   "error": null
 }
 
 ================================================================
-[2025-08-21T07:10:57Z] TURN
+[2025-08-22T22:34:07Z] TURN
 ----------------------------------------------------------------
 {
-  "utterance": "give me a short summary",
-  "intent": "REQUEST_SUMMARY",
-  "routed_to": "ReportNode",
-  "ok": false,
-  "result": {
-    "stub": "SUMMARY_NOT_IMPLEMENTED"
-  },
-  "error": null
-}
-
-================================================================
-[2025-08-21T07:10:59Z] TURN
-----------------------------------------------------------------
-{
-  "utterance": "what's left?",
-  "intent": "WHAT_IS_LEFT",
-  "routed_to": "WhatsLeft",
+  "utterance": "recommend pruning to elevate the canopy above the roadway",
+  "intent": "PROVIDE_STATEMENT",
+  "domains": [
+    "tree_description"
+  ],
+  "routed_to": "LLM(domain) → extractors (report-only)",
   "ok": true,
   "result": {
-    "missing": {
-      "arborist_info": [
-        "arborist_info.address.city",
-        "arborist_info.address.country",
-        "arborist_info.address.postal_code",
-        "arborist_info.address.state",
-        "arborist_info.address.street",
-        "arborist_info.company",
-        "arborist_info.email",
-        "arborist_info.license",
-        "arborist_info.name",
-        "arborist_info.narratives",
-        "arborist_info.phone"
-      ],
-      "customer_info": [
-        "customer_info.address.country",
-        "customer_info.company",
-        "customer_info.email",
-        "customer_info.name",
-        "customer_info.narratives",
-        "customer_info.phone"
-      ],
-      "tree_description": [
-        "tree_description.canopy_width_ft",
-        "tree_description.crown_shape",
-        "tree_description.narratives",
-        "tree_description.trunk_notes",
-        "tree_description.type_common",
-        "tree_description.type_scientific"
-      ],
-      "area_description": [
-        "area_description.context",
-        "area_description.narratives",
-        "area_description.other_context_note"
-      ],
-      "targets": [
-        "targets.items",
-        "targets.narratives"
-      ],
-      "risks": [
-        "risks.narratives"
-      ],
-      "recommendations": [
-        "recommendations.continued_maintenance.limitations",
-        "recommendations.continued_maintenance.narrative",
-        "recommendations.continued_maintenance.notes",
-        "recommendations.continued_maintenance.scope",
-        "recommendations.narratives",
-        "recommendations.pruning.limitations",
-        "recommendations.pruning.narrative",
-        "recommendations.pruning.notes",
-        "recommendations.pruning.scope",
-        "recommendations.removal.limitations",
-        "recommendations.removal.narrative",
-        "recommendations.removal.notes",
-        "recommendations.removal.scope"
-      ],
-      "meta": [
-        "meta.declined_paths",
-        "meta.issues",
-        "meta.provided_fields"
-      ]
-    }
+    "updates": {
+      "tree_description": {
+        "type_common": "Not provided",
+        "type_scientific": "Not provided",
+        "height_ft": "Not provided",
+        "canopy_width_ft": "Not provided",
+        "crown_shape": "Not provided",
+        "dbh_in": "Not provided",
+        "trunk_notes": "Not provided",
+        "roots": "Not provided",
+        "defects": "Not provided",
+        "general_observations": "recommend pruning to elevate the canopy above the roadway",
+        "health_overview": "Not provided",
+        "pests_pathogens_observed": "Not provided",
+        "physiological_stress_signs": "Not provided"
+      }
+    },
+    "provided_fields": [
+      "tree_description.general_observations"
+    ],
+    "domains": [
+      "tree_description"
+    ]
   },
   "error": null
 }
 
 ================================================================
-[2025-08-21T07:11:00Z] TURN
+[2025-08-22T22:41:53Z] CONTEXT_LOADED
 ----------------------------------------------------------------
 {
-  "utterance": "thanks!",
-  "intent": "SMALL_TALK",
-  "routed_to": "None",
-  "ok": false,
+  "arborist_loaded": true,
+  "customer_loaded": true,
+  "location_loaded": true
+}
+
+================================================================
+[2025-08-22T22:41:59Z] TURN
+----------------------------------------------------------------
+{
+  "utterance": "recommend pruning to remove dead branches over the roof",
+  "intent": "PROVIDE_STATEMENT",
+  "domains": [],
+  "routed_to": "LLM(domain) → extractors (report-only)",
+  "ok": true,
   "result": {
-    "stub": "UNHANDLED_INTENT"
+    "updates": {},
+    "provided_fields": [],
+    "domains": []
+  },
+  "error": null
+}
+
+================================================================
+[2025-08-22T22:42:09Z] TURN
+----------------------------------------------------------------
+{
+  "utterance": "scope of pruning should include crown thinning for better airflow",
+  "intent": "PROVIDE_STATEMENT",
+  "domains": [
+    "tree_description"
+  ],
+  "routed_to": "LLM(domain) → extractors (report-only)",
+  "ok": true,
+  "result": {
+    "updates": {
+      "tree_description": {
+        "type_common": "Not provided",
+        "type_scientific": "Not provided",
+        "height_ft": "Not provided",
+        "canopy_width_ft": "Not provided",
+        "crown_shape": "Not provided",
+        "dbh_in": "Not provided",
+        "trunk_notes": "Not provided",
+        "roots": "Not provided",
+        "defects": "Not provided",
+        "general_observations": "scope of pruning should include crown thinning for better airflow",
+        "health_overview": "Not provided",
+        "pests_pathogens_observed": "Not provided",
+        "physiological_stress_signs": "Not provided"
+      }
+    },
+    "provided_fields": [
+      "tree_description.general_observations"
+    ],
+    "domains": [
+      "tree_description"
+    ]
+  },
+  "error": null
+}
+
+================================================================
+[2025-08-22T22:42:15Z] TURN
+----------------------------------------------------------------
+{
+  "utterance": "limitations include restricted access for large equipment",
+  "intent": "PROVIDE_STATEMENT",
+  "domains": [
+    "area_description"
+  ],
+  "routed_to": "LLM(domain) → extractors (report-only)",
+  "ok": true,
+  "result": {
+    "updates": {
+      "area_description": {
+        "context": "Not provided",
+        "other_context_note": "Not provided",
+        "site_use": "Not provided",
+        "foot_traffic_level": "Not provided"
+      }
+    },
+    "provided_fields": [],
+    "domains": [
+      "area_description"
+    ]
+  },
+  "error": null
+}
+
+================================================================
+[2025-08-22T22:42:20Z] TURN
+----------------------------------------------------------------
+{
+  "utterance": "continued maintenance should involve annual inspections",
+  "intent": "PROVIDE_STATEMENT",
+  "domains": [
+    "area_description"
+  ],
+  "routed_to": "LLM(domain) → extractors (report-only)",
+  "ok": true,
+  "result": {
+    "updates": {
+      "area_description": {
+        "context": "Not provided",
+        "other_context_note": "Not provided",
+        "site_use": "Not provided",
+        "foot_traffic_level": "Not provided"
+      }
+    },
+    "provided_fields": [],
+    "domains": [
+      "area_description"
+    ]
+  },
+  "error": null
+}
+
+================================================================
+[2025-08-22T22:42:26Z] TURN
+----------------------------------------------------------------
+{
+  "utterance": "recommend removal of the declining elm near the fence",
+  "intent": "PROVIDE_STATEMENT",
+  "domains": [],
+  "routed_to": "LLM(domain) → extractors (report-only)",
+  "ok": true,
+  "result": {
+    "updates": {},
+    "provided_fields": [],
+    "domains": []
+  },
+  "error": null
+}
+
+================================================================
+[2025-08-22T22:42:34Z] TURN
+----------------------------------------------------------------
+{
+  "utterance": "notes indicate pruning should be completed before storm season",
+  "intent": "PROVIDE_STATEMENT",
+  "domains": [
+    "tree_description"
+  ],
+  "routed_to": "LLM(domain) → extractors (report-only)",
+  "ok": true,
+  "result": {
+    "updates": {
+      "tree_description": {
+        "type_common": "Not provided",
+        "type_scientific": "Not provided",
+        "height_ft": "Not provided",
+        "canopy_width_ft": "Not provided",
+        "crown_shape": "Not provided",
+        "dbh_in": "Not provided",
+        "trunk_notes": "Not provided",
+        "roots": "Not provided",
+        "defects": "Not provided",
+        "general_observations": "notes indicate pruning should be completed before storm season",
+        "health_overview": "Not provided",
+        "pests_pathogens_observed": "Not provided",
+        "physiological_stress_signs": "Not provided"
+      }
+    },
+    "provided_fields": [
+      "tree_description.general_observations"
+    ],
+    "domains": [
+      "tree_description"
+    ]
+  },
+  "error": null
+}
+
+================================================================
+[2025-08-22T22:42:39Z] TURN
+----------------------------------------------------------------
+{
+  "utterance": "pruning narrative suggests selective thinning to reduce weight",
+  "intent": "PROVIDE_STATEMENT",
+  "domains": [],
+  "routed_to": "LLM(domain) → extractors (report-only)",
+  "ok": true,
+  "result": {
+    "updates": {},
+    "provided_fields": [],
+    "domains": []
+  },
+  "error": null
+}
+
+================================================================
+[2025-08-22T22:42:45Z] TURN
+----------------------------------------------------------------
+{
+  "utterance": "removal scope is limited to the east side due to property lines",
+  "intent": "PROVIDE_STATEMENT",
+  "domains": [
+    "area_description"
+  ],
+  "routed_to": "LLM(domain) → extractors (report-only)",
+  "ok": true,
+  "result": {
+    "updates": {
+      "area_description": {
+        "context": "Not provided",
+        "other_context_note": "Not provided",
+        "site_use": "Not provided",
+        "foot_traffic_level": "Not provided"
+      }
+    },
+    "provided_fields": [],
+    "domains": [
+      "area_description"
+    ]
+  },
+  "error": null
+}
+
+================================================================
+[2025-08-22T22:42:50Z] TURN
+----------------------------------------------------------------
+{
+  "utterance": "maintenance notes include mulching and irrigation adjustments",
+  "intent": "PROVIDE_STATEMENT",
+  "domains": [],
+  "routed_to": "LLM(domain) → extractors (report-only)",
+  "ok": true,
+  "result": {
+    "updates": {},
+    "provided_fields": [],
+    "domains": []
+  },
+  "error": null
+}
+
+================================================================
+[2025-08-22T22:43:00Z] TURN
+----------------------------------------------------------------
+{
+  "utterance": "recommend pruning to elevate the canopy above the roadway",
+  "intent": "PROVIDE_STATEMENT",
+  "domains": [
+    "tree_description"
+  ],
+  "routed_to": "LLM(domain) → extractors (report-only)",
+  "ok": true,
+  "result": {
+    "updates": {
+      "tree_description": {
+        "type_common": "Not provided",
+        "type_scientific": "Not provided",
+        "height_ft": "Not provided",
+        "canopy_width_ft": "Not provided",
+        "crown_shape": "Not provided",
+        "dbh_in": "Not provided",
+        "trunk_notes": "Not provided",
+        "roots": "Not provided",
+        "defects": "Not provided",
+        "general_observations": "recommend pruning to elevate the canopy above the roadway",
+        "health_overview": "Not provided",
+        "pests_pathogens_observed": "Not provided",
+        "physiological_stress_signs": "Not provided"
+      }
+    },
+    "provided_fields": [
+      "tree_description.general_observations"
+    ],
+    "domains": [
+      "tree_description"
+    ]
   },
   "error": null
 }

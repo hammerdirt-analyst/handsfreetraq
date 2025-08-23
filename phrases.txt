@@ -1,8 +1,0 @@
-my name is roger erismann
-customer address is 12 oak ave, san jose ca 95112
-dbh is 24 inches and height 60 ft
-site use is playground; foot traffic is high
-risk: falling branches likely; severity high; rationale over walkway
-give me a short summary
-what's left?
-thanks!
