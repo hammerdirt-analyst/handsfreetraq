@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# report_agent.py — Coordinator with read-only ReportContext and domain filtering
+# report_agent.py — Coordinator v2: cursor-first routing with explicit-scope (multi-scope) handling
 
 from __future__ import annotations
 
@@ -9,21 +9,11 @@ import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple, Literal
 
-from pydantic import BaseModel, Field, ConfigDict
-
+from extractor_registry import default_registry
 from intent_llm import classify_intent_llm
 from report_state import ReportState, NOT_PROVIDED
-from report_context import ReportContext  # actively used: to filter "what's left"
-
-# Extractors + model factory (report-editable sections only)
-from models import (
-    ModelFactory,
-    TreeDescriptionExtractor,
-    AreaDescriptionExtractor,
-    RisksExtractor,
-    RecommendationsExtractor,
-)
-
+from report_context import ReportContext
+from one_turn_parser import parse_turn
 # --------------------------- coordinator logging ---------------------------
 
 COORD_LOG = "coordinator-tests.txt"
@@ -40,88 +30,8 @@ def _write_log(block_header: str, payload: Dict[str, Any]) -> None:
         f.write(json.dumps(payload, indent=2, ensure_ascii=False))
         f.write("\n\n")
 
-# --------------------------- domain classification -------------------------
-
-# Only domains that are part of the editable report state:
-ALLOWED_DOMAINS: List[str] = [
-    "tree_description",
-    "area_description",
-    "risks",
-    "recommendations", # (add "targets", "recommendations" when you have those extractors)
-]
-
-DomainLabel = Literal["tree_description", "area_description", "risks"]
-
-class DomainSchema(BaseModel):
-    domains: List[DomainLabel] = Field(...)
-    model_config = ConfigDict(extra="forbid")
-import json, re
-
-def _safe_parse_domains(raw: str) -> list[str]:
-    # Try direct JSON
-    try:
-        return (json.loads(raw) or {}).get("domains", [])
-    except Exception:
-        pass
-    # Try to salvage the largest JSON object substring
-    m = re.search(r'\{.*\}', raw, re.DOTALL)
-    if m:
-        try:
-            return (json.loads(m.group(0)) or {}).get("domains", [])
-        except Exception:
-            pass
-    return []
-
-def classify_data_domains_llm(text: str) -> list[str]:
-    model = ModelFactory.get()
-    prompt = (
-        "Return ONLY strict JSON on one line: {\"domains\": [...]}.\n"
-        "Choose up to TWO from exactly this set:\n"
-        "[\"tree_description\",\"area_description\",\"risks\",\"recommendations\"]\n\n"
-        "Rules:\n"
-        "- 'risks' ONLY if tokens present: risk, hazard, likelihood, likely, unlikely, probability, severity, rationale.\n"
-        "- 'recommendations' for actions/proposals: recommend, should, scope, limitation(s), maintenance, notes indicate,\n"
-        "  narrative, inspect/inspection, prune/pruning, thin/thinning, elevate/clearance, remove/removal,\n"
-        "  mulch, irrigation, treat/treatment.\n"
-        "- If uncertain, return {\"domains\": []}.\n\n"
-        f"User message:\n{text}\n"
-    )
-    raw = model(prompt, DomainSchema, temperature=0.0, max_tokens=64)
-    domains = [d for d in _safe_parse_domains(raw) if d in ALLOWED_DOMAINS]
-
-    # Deterministic guard rails
-    lowered = text.lower()
-    risk_tokens = ("risk","hazard","likelihood","likely","unlikely","probability","severity","rationale")
-    rec_tokens  = ("recommend"," should ","scope","limitation","limitations","maintenance","notes indicate","narrative",
-                   "inspect","inspection","prune","pruning","thin","thinning","elevate","clearance",
-                   "remove","removal","mulch","irrigation","treat","treatment")
-    tree_cues   = ("dbh","height","canopy","crown","trunk","roots","defects","species","observations")
-
-    has_risk = any(t in lowered for t in risk_tokens)
-    has_rec  = any(t in lowered for t in rec_tokens)
-
-    # Ensure rec-only lines map to recommendations
-    if has_rec and not has_risk and "recommendations" not in domains:
-        domains.append("recommendations")
-
-    # Don’t allow 'risks' without risk tokens
-    if "risks" in domains and not has_risk:
-        domains = [d for d in domains if d != "risks"]
-
-    # Prefer tree vs area when tree cues exist
-    if any(t in lowered for t in tree_cues):
-        if "tree_description" not in domains:
-            domains = ["tree_description"] + [d for d in domains if d != "area_description"]
-
-    # Unique and cap at 2
-    seen = set()
-    domains = [d for d in domains if not (d in seen or seen.add(d))][:2]
-    return domains
-
-
 # --------------------------- context-edit deflection ------------------------
 
-# If the user attempts to edit job context (arborist/customer/location), we block it.
 _CTX_EDIT_RE = re.compile(
     r"\b(customer|client|arborist|my\s+(name|phone|email|license)|"
     r"(customer|client)\s+(name|phone|email|address)|"
@@ -156,38 +66,87 @@ def _handle_not_implemented(intent: str) -> Tuple[str, Dict[str, Any]]:
     }
     return mapping.get(intent, ("None", {"stub": "UNHANDLED_INTENT"}))
 
+# --------------------------- explicit scope parsing -------------------------
+
+_CANON = {
+    "area description": "area_description",
+    "tree description": "tree_description",
+    "targets": "targets",
+    "risks": "risks",
+    "recommendations": "recommendations",
+}
+
+# Any scope label anywhere in the utterance:
+#   "<Section>:"  OR  "(in|for|under|to) <Section> ..."
+_SCOPE_ANY_RX = re.compile(
+    r"(area description|tree description|targets|risks|recommendations)\s*:\s*|"
+    r"(?:\b(?:in|for|under|to)\s+)(area description|tree description|targets|risks|recommendations)\b[:\s]*",
+    re.I,
+)
+
+def _find_all_scopes(text: str) -> List[Tuple[int, int, str]]:
+    scopes: List[Tuple[int, int, str]] = []
+    for m in _SCOPE_ANY_RX.finditer(text or ""):
+        label = m.group(1) or m.group(2)
+        if label:
+            scopes.append((m.start(), m.end(), _CANON[label.lower()]))
+    return scopes
+
+def _parse_scoped_segments(user_text: str, current_section: str) -> List[Tuple[str, str]]:
+    """
+    Split an utterance into ordered (section, payload) segments.
+
+    Rules:
+      - If explicit scopes exist, each scope 'owns' text until the next scope or end-of-text.
+      - Unscoped lead-in (text before the first scope) is a segment for current_section.
+      - A scope with no trailing content is a navigation-only segment (empty payload).
+      - If no scopes exist, return [] and caller will run cursor-first.
+    """
+    text = user_text or ""
+    scopes = _find_all_scopes(text)
+    if not scopes:
+        return []
+
+    segments: List[Tuple[str, str]] = []
+
+    # Lead-in before the first scope → current_section
+    first_start, _, _ = scopes[0]
+    if first_start > 0:
+        lead = text[:first_start].strip()
+        if lead:
+            segments.append((current_section, lead))
+
+    # Scoped segments
+    for idx, (start, end, sec) in enumerate(scopes):
+        next_start = scopes[idx + 1][0] if idx + 1 < len(scopes) else len(text)
+        payload = text[end:next_start].strip()
+        segments.append((sec, payload))
+
+    return segments
+
 # ------------------------------- Coordinator --------------------------------
 
 class Coordinator:
     """
     Coordinator v2:
       * Requires ReportContext at construction (read-only)
-      * Excludes arborist/customer/location from any updates
-      * Filters domain router output to ALLOWED_DOMAINS
       * Deflects attempted context edits
-      * Uses ReportContext to filter WHAT_IS_LEFT so context-managed fields never show as “missing”
+      * Cursor-first routing with explicit-scope override, including multi-scope per turn
     """
 
     def __init__(self, context: ReportContext):
         if context is None:
             raise ValueError("ReportContext is required")
-        self.context = context  # actively used below
+        self.context = context
         self.state = ReportState()
+        self.registry = default_registry()
 
-        # Log context summary at startup (presence only)
+        # Log context presence at startup
         _write_log("CONTEXT_LOADED", {
             "arborist_loaded": self.context.arborist is not None,
             "customer_loaded": self.context.customer is not None,
             "location_loaded": self.context.location is not None,
         })
-
-        # Instantiate only the allowed section extractors
-        self._extractors: Dict[str, Any] = {
-            "tree_description": TreeDescriptionExtractor(),
-            "area_description": AreaDescriptionExtractor(),
-            "risks": RisksExtractor(),
-            "recommendation": RecommendationsExtractor()
-        }
 
     # --- internal: filter “what’s left” with context-managed keys ----------
     def _filter_missing_with_context(self, missing: Dict[str, List[str]]) -> Dict[str, List[str]]:
@@ -198,13 +157,9 @@ class Coordinator:
         if not isinstance(missing, dict):
             return missing
 
-        filtered = dict(missing)  # shallow copy
-
-        # Drop whole sections that are context-managed
+        filtered = dict(missing)
         for sec in ["arborist_info", "customer_info", "location"]:
-            if sec in filtered:
-                filtered.pop(sec, None)
-
+            filtered.pop(sec, None)
         return filtered
 
     def handle_turn(self, user_text: str) -> Dict[str, Any]:
@@ -226,7 +181,7 @@ class Coordinator:
             _write_log("TURN (intent error)", payload)
             return payload
 
-        # 2) Context-edit deflection (block any attempt to change job context)
+        # 2) Context-edit deflection
         if intent == "PROVIDE_STATEMENT" and _is_context_edit(user_text):
             out = _blocked_context_response(user_text)
             _write_log("TURN", out)
@@ -236,81 +191,118 @@ class Coordinator:
         ok = False
         result_payload: Optional[Dict[str, Any]] = None
         error: Optional[str] = None
-        coord_domains: Optional[List[str]] = None
 
-        # 3) Routing for report-editable domains only
+        # 3) Provide-statement path: cursor-first with explicit-scope (multi-scope) handling
         if intent == "PROVIDE_STATEMENT":
-            routed_to = "LLM(domain) → extractors (report-only)"
+            routed_to = "cursor → extractor (with explicit-scope segments)"
             try:
-                domains = classify_data_domains_llm(user_text)
-                domains = [d for d in domains if d in self._extractors]
-                coord_domains = domains[:]
+                # Build segments; if none found, do a single cursor-first segment
+                segments = _parse_scoped_segments(user_text, self.state.current_section)
+                if not segments:
+                    segments = [(self.state.current_section, user_text or "")]
 
                 updates_aggregate: Dict[str, Any] = {}
                 provided_all: List[str] = []
+                any_captured = False
+                segment_results: List[Dict[str, Any]] = []
 
-                for dom in domains:
-                    ex = self._extractors[dom]
-                    out = ex.extract_dict(user_text, temperature=0.0, max_tokens=300)
-                    result = out.get("result") or out
-                    updates = (result.get("updates") or {})
-                    # Merge into state (shallow), preferring existing provided values
-                    self.state = self.state.model_merge_updates(
-                        updates,
-                        policy="prefer_existing",
-                        turn_id=_now_iso(),
-                        timestamp=_now_iso(),
-                        domain=dom,
-                        extractor=ex.__class__.__name__,
-                        model_name=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
-                    )
-                    # accumulate visible “provided_fields”
-                    provided = out.get("provided_fields")
+                for seg_section, payload in segments:
+                    # Update conversational context to this segment's section
+                    self.state.current_section = seg_section
+
+                    # Navigation-only segment: skip extractor
+                    if not payload.strip():
+                        segment_results.append({
+                            "section": seg_section, "note": "navigation_only", "provided_fields": []
+                        })
+                        continue
+
+                    # Run the single extractor for this segment
+                    ex = self.registry.get(seg_section)
+                    out = ex.extract_dict(payload, temperature=0.0, max_tokens=300)
+
+                    result_obj = out.get("result") or out
+                    updates = (result_obj.get("updates") or {})
+                    provided = out.get("provided_fields") or []
+
                     if provided:
+                        any_captured = True
                         provided_all.extend(provided)
 
-                    # Plain dict echo of what just got produced (not full state)
-                    for section, payload in updates.items():
-                        if section not in updates_aggregate:
-                            updates_aggregate[section] = payload
-                        else:
-                            def _merge(dst, src):
-                                if isinstance(dst, dict) and isinstance(src, dict):
-                                    for k, v in src.items():
-                                        if k in dst and isinstance(dst[k], dict) and isinstance(v, dict):
-                                            _merge(dst[k], v)
-                                        else:
-                                            dst[k] = v
-                            _merge(updates_aggregate[section], payload)
+                        # Merge into state (prefer existing) with provenance
+                        self.state = self.state.model_merge_updates(
+                            updates,
+                            policy="prefer_existing",
+                            turn_id=_now_iso(),
+                            timestamp=_now_iso(),
+                            domain=seg_section,
+                            extractor=ex.__class__.__name__,
+                            model_name=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+                        )
 
-                result_payload = {
-                    "updates": updates_aggregate,
-                    "provided_fields": sorted(set(provided_all)),
-                    "domains": list(set(coord_domains)),
-                }
-                ok = True
+                        # Aggregate a shallow echo of produced updates
+                        for section_key, payload_block in updates.items():
+                            if section_key not in updates_aggregate:
+                                updates_aggregate[section_key] = payload_block
+                            else:
+                                def _merge(dst, src):
+                                    if isinstance(dst, dict) and isinstance(src, dict):
+                                        for k, v in src.items():
+                                            if k in dst and isinstance(dst[k], dict) and isinstance(v, dict):
+                                                _merge(dst[k], v)
+                                            else:
+                                                dst[k] = v
+                                _merge(updates_aggregate[section_key], payload_block)
+
+                        segment_results.append({
+                            "section": seg_section, "note": "captured",
+                            "provided_fields": sorted(set(provided))
+                        })
+                    else:
+                        segment_results.append({
+                            "section": seg_section, "note": "no_capture", "provided_fields": []
+                        })
+
+                # Build turn result
+                if any_captured:
+                    result_payload = {
+                        "updates": updates_aggregate,
+                        "provided_fields": sorted(set(provided_all)),
+                        "segments": segment_results,
+                        "final_section": self.state.current_section,
+                        "note": "captured",
+                    }
+                    ok = True
+                else:
+                    result_payload = {
+                        "updates": {},
+                        "provided_fields": [],
+                        "segments": segment_results,
+                        "final_section": self.state.current_section,
+                        "note": "no_capture",
+                        "clarify": (
+                            f"I didn't capture anything for {self.state.current_section.replace('_',' ')} from that. "
+                            "You can rephrase, or say e.g. 'Tree Description: DBH is 24 in'."
+                        ),
+                    }
+                    ok = True
 
             except Exception as e:
                 error = f"ProvideData error: {e}"
                 ok = False
 
-
+        # 4) Other intents → stub handoff (no extractor calls here)
         elif intent == "REQUEST_SERVICE":
             routed_to = "RequestService"
             try:
                 result_payload = {
                     "stub": "REQUEST_FORWARDED_TO_SERVICE_AGENT",
-                    "service_note": "Client requested a service; handed off to service agent.",
-                    "utterance": user_text,
-
+                    "utterance": user_text
                 }
                 ok = True
-                coord_domains = None  # not applicable
-
             except Exception:
                 routed_to, result_payload = _handle_not_implemented(intent)
                 ok = False
-
         else:
             routed_to, result_payload = _handle_not_implemented(intent)
             ok = False
@@ -318,34 +310,19 @@ class Coordinator:
         output = {
             "utterance": user_text,
             "intent": intent,
-            "domains": coord_domains,
             "routed_to": routed_to,
             "ok": ok,
             "result": result_payload,
             "error": error,
         }
+        captures = parse_turn(output)
+        self.state = self.state.update_provided_fields(captures)
 
-        _write_log("TURN", output)
+        _write_log("TURN", {
+            **output,
+            "state_meta_provided_fields": self.state.meta.provided_fields,
+
+        })
         return output
 
-
-# # Optional CLI quick check (expects context from test_data)
-# if __name__ == "__main__":
-#     from test_data import ARBORIST_PROFILE, CUSTOMER_PROFILE, TREE_LOCATION
-#     from report_context import ReportContext, ArboristInfoCtx, CustomerInfoCtx, AddressCtx, LocationCtx
-#
-#     ctx = ReportContext(
-#         arborist=ArboristInfoCtx(**ARBORIST_PROFILE),
-#         customer=CustomerInfoCtx(**CUSTOMER_PROFILE),
-#         location=LocationCtx(**TREE_LOCATION),
-#     )
-#     C = Coordinator(context=ctx)
-#     for p in [
-#         "my name is roger erismann",
-#         "dbh is 24 inches and height 60 ft",
-#         "site use is playground; foot traffic is high",
-#         "risk: falling branches likely; severity high; rationale over walkway",
-#         "coordinates are 37.77, -122.42",
-#         "what's left?",
-#     ]:
-#         print(json.dumps(C.handle_turn(p), indent=2, ensure_ascii=False))
+        return output

@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Literal
 from pydantic import BaseModel, Field
 
 NOT_PROVIDED = "Not provided"
@@ -111,7 +111,8 @@ class LocationState(BaseModel):
 class MetaState(BaseModel):
     declined_paths: List[str] = Field(default_factory=list)
     issues: List[Dict[str, Any]] = Field(default_factory=list)
-    provided_fields: List[str] = Field(default_factory=list)  # dotted paths ever provided
+    provided_fields: List[Dict[str, Any]] = Field(default_factory=list)  # dotted paths ever provided
+
 
 # =========================
 # ReportState Root
@@ -119,6 +120,7 @@ class MetaState(BaseModel):
 
 class ReportState(BaseModel):
     current_text: str = Field(default="")
+    current_section: Literal["area_description", "tree_description", "targets", "risks", "recommendations"] = "area_description"
 
     arborist_info: ArboristInfoState = Field(default_factory=ArboristInfoState)
     customer_info: CustomerInfoState = Field(default_factory=CustomerInfoState)
@@ -240,6 +242,60 @@ class ReportState(BaseModel):
 
         # return re-validated instance
         return self.__class__.model_validate(data)
+    def update_provided_fields(
+        self,
+        captures: list[dict],
+        dedupe: bool = True,
+    ) -> "ReportState":
+        """
+        Append parsed utterance-capture objects into meta.provided_fields.
+
+        Each capture should be shaped like:
+          { "section": <str>, "text": <str>, "path": <str>, "value": <str> }
+
+        - Uses append semantics (preserves order).
+        - If dedupe=True, drops exact duplicate entries.
+        """
+
+        if not captures:
+            return self
+
+        # normalize + validate
+        new_items = []
+        for c in captures:
+            if not isinstance(c, dict):
+                continue
+            if not all(k in c for k in ("section", "text", "path", "value")):
+                continue
+            new_items.append(c)
+
+        if not new_items:
+            return self
+
+        # grab current
+        current = list(getattr(self.meta, "provided_fields", []))
+
+        merged = current + new_items
+        if dedupe:
+            seen = set()
+            deduped = []
+            for obj in merged:
+                key = (
+                    obj.get("section"),
+                    obj.get("text"),
+                    obj.get("path"),
+                    obj.get("value"),
+                )
+                if key in seen:
+                    continue
+                seen.add(key)
+                deduped.append(obj)
+            merged = deduped
+
+        # return updated state
+        data = self.model_dump(exclude_none=False)
+        data["meta"]["provided_fields"] = merged
+        return self.__class__.model_validate(data)
 
 # =========================
 # Whats-left
@@ -282,3 +338,4 @@ def compute_whats_left(state: ReportState) -> Dict[str, List[str]]:
         missing[k] = sorted(set(missing[k]))
 
     return missing
+

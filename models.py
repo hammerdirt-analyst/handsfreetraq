@@ -1,9 +1,8 @@
 """
 arborist-agent/models.py
 author: roger erismann
-
-
 """
+
 # Reusable extractors for arborist_agent — Outlines 1.2.3 + OpenAI v1
 from __future__ import annotations
 
@@ -123,12 +122,6 @@ class ExtractorReturnRisks(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 # ---- State-friendly simple models for other sections (used by ReportState) ----
-class AreaDescription(BaseModel):
-    context: str = NOT_PROVIDED
-    other_context_note: str = NOT_PROVIDED
-    site_use: str = NOT_PROVIDED
-    foot_traffic_level: str = NOT_PROVIDED
-    narratives: List[str] = Field(default_factory=list)
 
 class TargetItem(BaseModel):
     label: str = Field(default=NOT_PROVIDED)
@@ -269,7 +262,6 @@ class CustomerInfoExtractor(BaseExtractor):
 
 class TreeDescriptionExtractor(BaseExtractor):
     schema_cls = ExtractorReturnTree
-
     def build_prompt(self, user_text: str) -> str:
         role_hint = "No first-person mapping; copy attributes verbatim."
         return build_prompt(
@@ -286,7 +278,6 @@ class TreeDescriptionExtractor(BaseExtractor):
                 ("roots", "free text notes about root conditions"),
                 ("defects", "free text notes about defects (e.g., cavities, cracks)"),
                 ("general_observations", "other notable observations"),
-                # ---- Health Assessment (new) ----
                 ("health_overview", "overall health/vigor summary"),
                 ("pests_pathogens_observed", "diseases/pests named in text"),
                 ("physiological_stress_signs", "stress indicators (e.g., chlorosis, dieback)"),
@@ -294,7 +285,6 @@ class TreeDescriptionExtractor(BaseExtractor):
             list_notes=None,
             user_text=user_text,
         )
-
 
 class RisksExtractor(BaseExtractor):
     schema_cls = ExtractorReturnRisks
@@ -312,17 +302,14 @@ class RisksExtractor(BaseExtractor):
             '{ "description": string, "likelihood": string, "severity": string, "rationale": string }\n'
         )
         return base + "\n" + items_shape
-# ---- AreaDescription extractor (strict, verbatim) ---------------------------
-# from pydantic import BaseModel, Field, ConfigDict
-# from typing import Type
 
-# Strict LLM-facing section schema (all fields REQUIRED)
+# ---- AreaDescription extractor (strict, verbatim) ---------------------------
+
 class AreaDescriptionStrict(BaseModel):
     context: str = Field(..., description="Area context (e.g., urban/suburban/rural) or 'Not provided'")
     other_context_note: str = Field(..., description="Free text note or 'Not provided'")
     site_use: str = Field(..., description="Primary site use (e.g., playground, parking lot) or 'Not provided'")
     foot_traffic_level: str = Field(..., description="Foot traffic level (e.g., low/medium/high) or 'Not provided'")
-
     model_config = ConfigDict(extra="forbid")
 
 class UpdatesArea(BaseModel):
@@ -332,7 +319,6 @@ class UpdatesArea(BaseModel):
 class ExtractorReturnArea(BaseModel):
     updates: UpdatesArea = Field(...)
     model_config = ConfigDict(extra="forbid")
-
 
 class AreaDescriptionExtractor(BaseExtractor):
     """
@@ -351,7 +337,6 @@ class AreaDescriptionExtractor(BaseExtractor):
       - We do NOT extract 'narratives' here; that stays state-only.
       - Verbatim-only policy; unknowns => exact string Not provided.
     """
-
     schema_cls: Type[BaseModel] = ExtractorReturnArea
 
     def build_prompt(self, user_text: str) -> str:
@@ -379,6 +364,81 @@ class AreaDescriptionExtractor(BaseExtractor):
             f"User message:\n{user_text}\n"
         )
 
+# ---- Targets extractor (strict, verbatim, arrays) ---------------------------
+
+class TargetItemStrict(BaseModel):
+    label: str = Field(..., description="Target label (e.g., building, playground) or 'Not provided'")
+    damage_modes: List[str] = Field(..., description="Array of damage mode strings; [] if none")
+    proximity_note: str = Field(..., description="Free text proximity note or 'Not provided'")
+    occupied_frequency: str = Field(..., description="e.g., low/medium/high/daily or 'Not provided'")
+    narratives: List[str] = Field(..., description="Additional notes; [] if none")
+    model_config = ConfigDict(extra="forbid")
+
+class TargetsSectionStrict(BaseModel):
+    items: List[TargetItemStrict] = Field(..., description="Array of targets; [] if none")
+    narratives: List[str] = Field(..., description="Section-level notes; [] if none")
+    model_config = ConfigDict(extra="forbid")
+
+class UpdatesTargets(BaseModel):
+    targets: TargetsSectionStrict = Field(...)
+    model_config = ConfigDict(extra="forbid")
+
+class ExtractorReturnTargets(BaseModel):
+    updates: UpdatesTargets = Field(...)
+    model_config = ConfigDict(extra="forbid")
+
+class TargetExtractor(BaseExtractor):
+    """
+    Produces:
+    {
+      "updates": {
+        "targets": {
+          "items": [
+            {
+              "label": string,
+              "damage_modes": [string, ...],
+              "proximity_note": string,
+              "occupied_frequency": string,
+              "narratives": [string, ...]
+            },
+            ...
+          ],
+          "narratives": [string, ...]
+        }
+      }
+    }
+    Verbatim-only. Arrays must be present; [] if none.
+    """
+    schema_cls = ExtractorReturnTargets
+
+    def build_prompt(self, user_text: str) -> str:
+        # Use base helper with array notes, then specify item object shape.
+        base = build_prompt(
+            section_name="targets",
+            role_hint="No first-person mapping; copy values that appear verbatim.",
+            fields=[],
+            list_notes={
+                "items": "Array of target objects; [] if none",
+                "narratives": "Array of section-level notes; [] if none",
+            },
+            user_text=user_text,
+        )
+        item_shape = (
+            "Each element of 'items' MUST be an object with exactly these keys and types:\n"
+            '{ "label": string, "damage_modes": array, "proximity_note": string, '
+            '"occupied_frequency": string, "narratives": array }\n'
+            "- For arrays, output [] if none.\n"
+            f"- If a scalar value is not present in the user message, use the exact string {NOT_PROVIDED}.\n"
+        )
+        arrays_detail = (
+            "Array element rules:\n"
+            "- damage_modes: each entry is a string from the user text; do not synthesize.\n"
+            "- narratives: each entry is a verbatim snippet from the user text; [] if none.\n"
+        )
+        return base + "\n" + item_shape + "\n" + arrays_detail
+
+# ---- Recommendations extractor (strict, verbatim) --------------------------
+
 class RecommendationDetailX(BaseModel):
     narrative: str = Field(...)
     scope: str = Field(...)
@@ -401,10 +461,8 @@ class ExtractorReturnRecommendations(BaseModel):
     updates: UpdatesRecommendations = Field(...)
     model_config = ConfigDict(extra="forbid")
 
-
 class RecommendationsExtractor(BaseExtractor):
     schema_cls = ExtractorReturnRecommendations
-
     def build_prompt(self, user_text: str) -> str:
         return (
             "VERBATIM-ONLY MODE.\n"

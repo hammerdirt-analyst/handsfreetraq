@@ -1,0 +1,280 @@
+[
+  {
+    "utterance": "Tree Description: species American Elm; height 65ft; DBH 33”",
+    "cursor_before": "area_description",
+    "expect": {
+      "intent": "PROVIDE_STATEMENT",
+      "domain": { "segments": ["tree_description"], "final_section": "tree_description" },
+      "extractor": ["TreeDescriptionExtractor"],
+      "fields": {
+        "tree_description.type_common": "American Elm",
+        "tree_description.height_ft": "65ft",
+        "tree_description.dbh_in": "33”"
+      }
+    }
+  },
+  {
+    "utterance": "Tree Description: multiple previous limb failures; one large limb failure at 45ft",
+    "cursor_before": "tree_description",
+    "expect": {
+      "intent": "PROVIDE_STATEMENT",
+      "domain": { "segments": ["tree_description"], "final_section": "tree_description" },
+      "extractor": ["TreeDescriptionExtractor"],
+      "fields": {
+        "tree_description.defects": "multiple previous limb failures; one large limb failure at 45ft"
+      }
+    }
+  },
+  {
+    "utterance": "Tree Description: large defect exceeding 25% of the diameter of one of the main stems",
+    "cursor_before": "tree_description",
+    "expect": {
+      "intent": "PROVIDE_STATEMENT",
+      "domain": { "segments": ["tree_description"], "final_section": "tree_description" },
+      "extractor": ["TreeDescriptionExtractor"],
+      "fields": {
+        "tree_description.defects": "large defect exceeding 25% of the diameter of one of the main stems"
+      }
+    }
+  },
+  {
+    "utterance": "Tree Description: three dead, partially detached branches of moderate size are currently existing within the canopy",
+    "cursor_before": "tree_description",
+    "expect": {
+      "intent": "PROVIDE_STATEMENT",
+      "domain": { "segments": ["tree_description"], "final_section": "tree_description" },
+      "extractor": ["TreeDescriptionExtractor"],
+      "fields": {
+        "tree_description.defects": "three dead, partially detached branches of moderate size are currently existing within the canopy"
+      }
+    }
+  },
+  {
+    "utterance": "Tree Description: consultation with the homeowner confirmed a history of moderate and large limb failures",
+    "cursor_before": "tree_description",
+    "expect": {
+      "intent": "PROVIDE_STATEMENT",
+      "domain": { "segments": ["tree_description"], "final_section": "tree_description" },
+      "extractor": ["TreeDescriptionExtractor"],
+      "fields": {
+        "tree_description.general_observations": "history of moderate and large limb failures"
+      }
+    }
+  },
+  {
+    "utterance": "Tree Description: root intrusions resulting in damages to the concrete foundation and plumbing system",
+    "cursor_before": "tree_description",
+    "expect": {
+      "intent": "PROVIDE_STATEMENT",
+      "domain": { "segments": ["tree_description"], "final_section": "tree_description" },
+      "extractor": ["TreeDescriptionExtractor"],
+      "fields": {
+        "tree_description.roots": "root intrusions resulting in damages to the concrete foundation and plumbing system"
+      }
+    }
+  },
+  {
+    "utterance": "Tree Description: heavy pruning or partial dismantling would remove more than one third of the canopy structures",
+    "cursor_before": "tree_description",
+    "expect": {
+      "intent": "PROVIDE_STATEMENT",
+      "domain": { "segments": ["tree_description"], "final_section": "tree_description" },
+      "extractor": ["TreeDescriptionExtractor"],
+      "fields": {
+        "tree_description.general_observations": "heavy pruning or partial dismantling would remove more than one third of the canopy structures"
+      }
+    }
+  },
+  {
+    "utterance": "Tree Description: elevated risk of death or serious decline if more than one third of the canopy is removed",
+    "cursor_before": "tree_description",
+    "expect": {
+      "intent": "PROVIDE_STATEMENT",
+      "domain": { "segments": ["tree_description"], "final_section": "tree_description" },
+      "extractor": ["TreeDescriptionExtractor"],
+      "fields": {
+        "tree_description.health_overview": "elevated risk of death or serious decline if more than one third of the canopy is removed"
+      }
+    }
+  },
+  {
+    "utterance": "Risks: failure at the large defect is most likely to occur and would result in major property damages and potentially life-threatening consequences",
+    "cursor_before": "risks",
+    "expect": {
+      "intent": "PROVIDE_STATEMENT",
+      "domain": { "segments": ["risks"], "final_section": "risks" },
+      "extractor": ["RisksExtractor"],
+      "fields": {
+        "risks.items": [
+          {
+            "description": "failure at the large defect",
+            "likelihood": "most likely to occur",
+            "severity": "major property damages and potentially life-threatening consequences",
+            "rationale": "large defect exceeding 25% of the diameter; previous limb failures"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "utterance": "Risks: three dead, partially detached branches are presenting risk to people and properties within strike potential",
+    "cursor_before": "risks",
+    "expect": {
+      "intent": "PROVIDE_STATEMENT",
+      "domain": { "segments": ["risks"], "final_section": "risks" },
+      "extractor": ["RisksExtractor"],
+      "fields": {
+        "risks.items": [
+          {
+            "description": "three dead, partially detached branches",
+            "likelihood": "presenting risk",
+            "severity": "risk to people and properties within strike potential",
+            "rationale": "branches are dead and partially detached"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "utterance": "Risks: overall the tree is presenting with a moderate level of risk",
+    "cursor_before": "risks",
+    "expect": {
+      "intent": "PROVIDE_STATEMENT",
+      "domain": { "segments": ["risks"], "final_section": "risks" },
+      "extractor": ["RisksExtractor"],
+      "fields": {
+        "risks.items": [
+          {
+            "description": "overall risk level",
+            "likelihood": "moderate",
+            "severity": "potential for property damage and injury",
+            "rationale": "nature of defects within the canopy and history of failures"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "utterance": "Targets: multi-unit occupied dwellings; fall distance to the target is sufficient to impact the target",
+    "cursor_before": "targets",
+    "expect": {
+      "intent": "PROVIDE_STATEMENT",
+      "domain": { "segments": ["targets"], "final_section": "targets" },
+      "extractor": ["TargetExtractor"],
+      "fields": {
+        "targets.items": [
+          {
+            "label": "multi-unit occupied dwellings",
+            "damage_modes": ["impact from limb/stem failure"],
+            "proximity_note": "fall distance to the target",
+            "occupied_frequency": "occupied"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "utterance": "Targets: people and properties within strike potential of the defective parts of the tree",
+    "cursor_before": "targets",
+    "expect": {
+      "intent": "PROVIDE_STATEMENT",
+      "domain": { "segments": ["targets"], "final_section": "targets" },
+      "extractor": ["TargetExtractor"],
+      "fields": {
+        "targets.items": [
+          {
+            "label": "people and properties",
+            "damage_modes": ["strike potential from defective parts"],
+            "proximity_note": "within strike potential",
+            "occupied_frequency": "varies"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "utterance": "Area Description: residential home in downtown Sacramento, Ca",
+    "cursor_before": "area_description",
+    "expect": {
+      "intent": "PROVIDE_STATEMENT",
+      "domain": { "segments": ["area_description"], "final_section": "area_description" },
+      "extractor": ["AreaDescriptionExtractor"],
+      "fields": {
+        "area_description.context": "residential home in downtown Sacramento, Ca",
+        "area_description.site_use": "residential"
+      }
+    }
+  },
+  {
+    "utterance": "Area Description: site history shows two other American Elm trees along F street with very recent large limb failures",
+    "cursor_before": "area_description",
+    "expect": {
+      "intent": "PROVIDE_STATEMENT",
+      "domain": { "segments": ["area_description"], "final_section": "area_description" },
+      "extractor": ["AreaDescriptionExtractor"],
+      "fields": {
+        "area_description.other_context_note": "two other American Elm trees along F street with very recent large limb failures"
+      }
+    }
+  },
+  {
+    "utterance": "Area Description: caution tape placed around the front properties within the canopy zones of those two trees",
+    "cursor_before": "area_description",
+    "expect": {
+      "intent": "PROVIDE_STATEMENT",
+      "domain": { "segments": ["area_description"], "final_section": "area_description" },
+      "extractor": ["AreaDescriptionExtractor"],
+      "fields": {
+        "area_description.other_context_note": "caution tape placed around the front properties within the canopy zones of those two trees"
+      }
+    }
+  },
+  {
+    "utterance": "Recommendations: complete dismantling of this tree is the safest option to eliminate the immediate risks",
+    "cursor_before": "recommendations",
+    "expect": {
+      "intent": "PROVIDE_STATEMENT",
+      "domain": { "segments": ["recommendations"], "final_section": "recommendations" },
+      "extractor": ["RecommendationsExtractor"],
+      "fields": {
+        "recommendations.removal.narrative": "complete dismantling of this tree is the safest option to eliminate the immediate risks"
+      }
+    }
+  },
+  {
+    "utterance": "Recommendations: heavy pruning would place the tree at an elevated risk of death or serious decline",
+    "cursor_before": "recommendations",
+    "expect": {
+      "intent": "PROVIDE_STATEMENT",
+      "domain": { "segments": ["recommendations"], "final_section": "recommendations" },
+      "extractor": ["RecommendationsExtractor"],
+      "fields": {
+        "recommendations.pruning.narrative": "heavy pruning would place the tree at an elevated risk of death or serious decline"
+      }
+    }
+  },
+  {
+    "utterance": "Recommendations: remove to eliminate risk of further damages or injury to persons and property within direct proximity exposure",
+    "cursor_before": "recommendations",
+    "expect": {
+      "intent": "PROVIDE_STATEMENT",
+      "domain": { "segments": ["recommendations"], "final_section": "recommendations" },
+      "extractor": ["RecommendationsExtractor"],
+      "fields": {
+        "recommendations.removal.scope": "remove to eliminate risk of further damages or injury to persons and property within direct proximity exposure"
+      }
+    }
+  },
+  {
+    "utterance": "Tree Description: major property damages have already occurred, including roof replacement and concrete and plumbing repairs",
+    "cursor_before": "tree_description",
+    "expect": {
+      "intent": "PROVIDE_STATEMENT",
+      "domain": { "segments": ["tree_description"], "final_section": "tree_description" },
+      "extractor": ["TreeDescriptionExtractor"],
+      "fields": {
+        "tree_description.general_observations": "major property damages have already occurred, including roof replacement and concrete and plumbing repairs"
+      }
+    }
+  }
+]
