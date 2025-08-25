@@ -16,7 +16,7 @@ from report_context import ReportContext
 from one_turn_parser import parse_turn
 # --------------------------- coordinator logging ---------------------------
 
-COORD_LOG = "coordinator-tests.txt"
+COORD_LOG = "coordinator_logs/coordinator-tests.txt"
 
 def _now_iso() -> str:
     return datetime.utcnow().isoformat(timespec="seconds") + "Z"
