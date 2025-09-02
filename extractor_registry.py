@@ -1,4 +1,25 @@
-# extractor_registry.py
+"""
+Project: Arborist Agent
+File: extractor_registry.py
+Author: roger erismann
+
+Validating registry that maps canonical section ids to extractor classes and
+returns fresh extractor instances. Ensures required sections exist and catches typos.
+
+Methods & Classes
+- REQUIRED_SECTIONS: canonical mapping of section -> extractor class.
+- class ExtractorRegistry(mapping: dict[str, Type])
+  - __init__(mapping): copy & validate mapping.
+  - _validate() -> None: assert required sections present, no unknown keys, correct subclassing.
+  - get(section: str): instantiate and return extractor for a canonical section id.
+- default_registry() -> ExtractorRegistry: factory for the validated default mapping.
+
+Dependencies
+- Internal: models.TreeDescriptionExtractor, AreaDescriptionExtractor, TargetExtractor,
+            RisksExtractor, RecommendationsExtractor
+- Stdlib: logging, typing
+"""
+
 from __future__ import annotations
 from typing import Dict, Type
 import logging

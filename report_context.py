@@ -1,7 +1,23 @@
-# report_context.py — read-only job context (no circular imports)
+"""
+Project: Arborist Agent
+File: report_context.py
+Author: roger erismann
+
+Read-only job context (“who/where”) injected into the Coordinator at startup.
+Strict Pydantic models; the Coordinator must not mutate this context.
+
+Methods & Classes
+- AddressCtx, ArboristInfoCtx, CustomerInfoCtx, LocationCtx: strict context submodels.
+- class ReportContext: {arborist, customer, location}; extra="forbid".
+- _build_context_from_testdata() -> ReportContext: helper to construct a dev context from test fixtures.
+
+Dependencies
+- External: pydantic
+- Internal (dev-only in helper): tests.test_data fixtures
+"""
+
 
 from __future__ import annotations
-from typing import Optional
 from pydantic import BaseModel, Field, ConfigDict
 
 # ---- Context models (read-only “who/where” for the job) --------------------
@@ -53,7 +69,7 @@ def _build_context_from_testdata() -> ReportContext:
     Convenience for local/dev runs: constructs ReportContext
     from test_data.py fixtures.
     """
-    from test_data import ARBORIST_PROFILE, CUSTOMER_PROFILE, DEFAULT_LOCATION # local-only
+    from tests.test_data import ARBORIST_PROFILE, CUSTOMER_PROFILE, DEFAULT_LOCATION # local-only
     return ReportContext(
         arborist=ArboristInfoCtx(**ARBORIST_PROFILE),
         customer=CustomerInfoCtx(**CUSTOMER_PROFILE),

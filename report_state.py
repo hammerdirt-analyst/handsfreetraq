@@ -1,16 +1,42 @@
-# report_state.py
-# Clean state models + helpers for the arborist agent
+"""
+Project: Arborist Agent
+File: report_state.py
+Author: roger erismann
 
+Canonical report state and provenance model with merge semantics:
+- list fields append, scalars last-write (guarded by "prefer_existing"),
+- merges produce provenance rows only for applied fields,
+- emit a single Not Found row when no fields apply for a segment.
+
+Methods & Classes
+- Section models (AddressState, ArboristInfoState, CustomerInfoState, TreeDescriptionState,
+  AreaDescriptionState, TargetItemState, TargetsSectionState, RiskItemState, RisksSectionState,
+  RecommendationDetailState, RecommendationsSectionState, LocationState)  # state schema
+- MetaState: agent meta (declined paths, issues)
+- ProvenanceEvent: per-field applied event rows
+- class ReportState:
+  - fields: current_text, current_section, <section models>, meta, provenance
+  - _is_provided(v: Any) -> bool: providedness policy (sentinel vs empty vs None).
+  - _walk_and_collect(prefix, obj, out) -> None: flatten to dotted paths.
+  - _set_by_path(data, path, value) -> None: nested set by dotted path.
+  - model_merge_updates(updates, *, policy="prefer_existing", turn_id, timestamp, domain, extractor, model_name, segment_text) -> ReportState
+- compute_whats_left(state: ReportState) -> dict[str, list[str]]: dotted paths still “Not provided” or empty.
+
+Dependencies
+- External: pydantic
+- Stdlib: typing
+- Conventions: NOT_PROVIDED sentinel string; “Not Found” in provenance means extractor ran but nothing applied.
+"""
 from __future__ import annotations
+from pydantic import BaseModel, Field, ConfigDict
+from typing import Any, Dict, List, Literal, Optional
+import hashlib
+import json
 
-from typing import Any, Dict, List, Optional, Literal
-from pydantic import BaseModel, Field
 
 NOT_PROVIDED = "Not provided"
 
-# =========================
 # Section Models (STATE)
-# =========================
 
 class AddressState(BaseModel):
     street: str = Field(default=NOT_PROVIDED)
@@ -45,18 +71,18 @@ class TreeDescriptionState(BaseModel):
     crown_shape: str = Field(default=NOT_PROVIDED)
     dbh_in: str = Field(default=NOT_PROVIDED)            # numeric-as-string policy
 
-    # Observations
-    trunk_notes: str = Field(default=NOT_PROVIDED)
-    roots: str = Field(default=NOT_PROVIDED)
-    defects: str = Field(default=NOT_PROVIDED)
-    general_observations: str = Field(default=NOT_PROVIDED)
+    # Observations (append-only lists)
+    trunk_notes: List[str] = Field(default_factory=list)
+    roots: List[str] = Field(default_factory=list)
+    defects: List[str] = Field(default_factory=list)
+    general_observations: List[str] = Field(default_factory=list)
 
-    # ---- Health Assessment (new) ----
+    # ---- Health Assessment (new)
     health_overview: str = Field(default=NOT_PROVIDED)              # e.g., “overall fair vigor; minor dieback”
-    pests_pathogens_observed: str = Field(default=NOT_PROVIDED)     # e.g., “anthracnose present” (verbatim)
-    physiological_stress_signs: str = Field(default=NOT_PROVIDED)   # e.g., “chlorosis, wilt”
+    pests_pathogens_observed: List[str] = Field(default_factory=list)     # e.g., “anthracnose present” (verbatim)
+    physiological_stress_signs: List[str] = Field(default_factory=list)   # e.g., “chlorosis, wilt”
 
-    # Optional narrative bucket (keep if you already had it)
+    # Optional narrative bucket
     narratives: List[str] = Field(default_factory=list)
 
 class AreaDescriptionState(BaseModel):
@@ -111,8 +137,93 @@ class LocationState(BaseModel):
 class MetaState(BaseModel):
     declined_paths: List[str] = Field(default_factory=list)
     issues: List[Dict[str, Any]] = Field(default_factory=list)
-    provided_fields: List[Dict[str, Any]] = Field(default_factory=list)  # dotted paths ever provided
 
+# =========================
+# Provenance (event log)
+# =========================
+
+class ProvenanceEvent(BaseModel):
+    turnid: Optional[str] = None
+    section: Optional[str] = None
+    text: Optional[str] = None          # the scoped user text sent to the extractor
+    path: str = Field(default="Not Found")   # dotted path or "Not Found"
+    value: str = Field(default="Not Found")  # captured value or "Not Found"
+    timestamp: Optional[str] = None
+    extractor: Optional[str] = None
+    model: Optional[str] = None
+
+
+# =========================
+# Section Summaries (replace-on-write snapshots)
+# =========================
+SectionName = Literal["area_description", "tree_description", "targets", "risks", "recommendations"]
+
+class SectionSummaryInputs(BaseModel):
+    """Snapshot of what the LLM saw when producing a section summary."""
+    version: str = "section_payload_v1"
+    section: SectionName
+    snapshot: Dict[str, Any] = Field(default_factory=dict)
+    provided_paths: List[str] = Field(default_factory=list)
+    reference_text: str = ""
+    style: Dict[str, Any] = Field(default_factory=dict)
+
+    @classmethod
+    def make(
+        cls,
+        *,
+        section: SectionName,
+        section_state: Dict[str, Any] | BaseModel,
+        reference_text: str,
+        provided_paths: List[str],
+        style: Optional[Dict[str, Any]] = None,
+    ) -> "SectionSummaryInputs":
+        if hasattr(section_state, "model_dump"):
+            section_state = section_state.model_dump(exclude_none=False)
+        return cls(
+            section=section,
+            snapshot=section_state or {},
+            provided_paths=list(provided_paths or []),
+            reference_text=reference_text or "",
+            style=style or {},
+        )
+
+class SectionSummaryState(BaseModel):
+    """Per-section, replaceable summary with minimal valid defaults."""
+    text: str = ""
+    updated_at: str = ""  # ISO string or empty
+    updated_by: Literal["llm", "human"] = "llm"  # <-- IMPORTANT: must NOT be NOT_PROVIDED
+    based_on_turnid: str = ""
+    inputs: SectionSummaryInputs = Field(default_factory=lambda: SectionSummaryInputs(
+        section="area_description", snapshot={}, provided_paths=[], reference_text="", style={}
+    ))
+
+class SummariesState(BaseModel):
+    """Container for all section summaries (valid from construction)."""
+    area_description: SectionSummaryState = Field(
+        default_factory=lambda: SectionSummaryState(
+            inputs=SectionSummaryInputs.make(section="area_description", section_state={}, reference_text="", provided_paths=[])
+        )
+    )
+    tree_description: SectionSummaryState = Field(
+        default_factory=lambda: SectionSummaryState(
+            inputs=SectionSummaryInputs.make(section="tree_description", section_state={}, reference_text="", provided_paths=[])
+        )
+    )
+    targets: SectionSummaryState = Field(
+        default_factory=lambda: SectionSummaryState(
+            inputs=SectionSummaryInputs.make(section="targets", section_state={}, reference_text="", provided_paths=[])
+        )
+    )
+    risks: SectionSummaryState = Field(
+        default_factory=lambda: SectionSummaryState(
+            inputs=SectionSummaryInputs.make(section="risks", section_state={}, reference_text="", provided_paths=[])
+        )
+    )
+    recommendations: SectionSummaryState = Field(
+        default_factory=lambda: SectionSummaryState(
+            inputs=SectionSummaryInputs.make(section="recommendations", section_state={}, reference_text="", provided_paths=[])
+        )
+    )
 
 # =========================
 # ReportState Root
@@ -133,11 +244,51 @@ class ReportState(BaseModel):
 
     meta: MetaState = Field(default_factory=MetaState)
 
-    # Lightweight provenance (optional):
-    # path -> { turn_id, timestamp, domain, extractor, model }
-    provenance: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
+    # Provenance is a list of per-field events (one row per section.field attempt)
+    provenance: List[ProvenanceEvent] = Field(default_factory=list)
+
+    summaries: SummariesState = Field(default_factory=SummariesState)
 
     # ---------- Helpers ----------
+
+    def set_section_summary(
+        self,
+        section: SectionName,
+        *,
+        summary: SectionSummaryState,
+        turn_id: Optional[str] = None,
+        timestamp: Optional[str] = None,
+        model_name: Optional[str] = None,
+    ) -> "ReportState":
+        """
+        Replace the per-section summary (no history). Emits ONE provenance row at:
+          path = f"summaries.{section}.text"
+        """
+        # Start with current full-state dict
+        data = self.model_dump(exclude_none=False)
+
+        # Replace the single section summary atomically
+        if "summaries" not in data or not isinstance(data["summaries"], dict):
+            data["summaries"] = {}
+        data["summaries"][section] = summary.model_dump(exclude_none=False)
+
+        # Append a single provenance row for the text write
+        prov = list(self.provenance)
+        prov.append(ProvenanceEvent(
+            turnid=turn_id,
+            section=section,
+            text=None,
+            path=f"summaries.{section}.text",
+            value=summary.text or "Not Found",
+            timestamp=timestamp,
+            extractor="SectionReportAgent",
+            model=model_name,
+        ))
+        data["provenance"] = [p.model_dump(exclude_none=False) if hasattr(p, "model_dump") else p for p in prov]
+
+        # Return a revalidated state
+        return self.__class__.model_validate(data)
+
     @staticmethod
     def _is_provided(v: Any) -> bool:
         if isinstance(v, str):
@@ -173,129 +324,131 @@ class ReportState(BaseModel):
     def model_merge_updates(
         self,
         updates: Dict[str, Any] | BaseModel | None,
-        issues: Any | None = None,               # kept for compatibility
-        policy: str = "prefer_existing",          # or "last_write"
+        issues: Any | None = None,  # kept for compatibility
+        policy: str = "prefer_existing",  # or "last_write"
         turn_id: Optional[str] = None,
         timestamp: Optional[str] = None,
-        domain: Optional[str] = None,
+        domain: Optional[str] = None,  # section
         extractor: Optional[str] = None,
         model_name: Optional[str] = None,
+        segment_text: Optional[str] = None,  # the scoped user text routed to the extractor
     ) -> "ReportState":
         """
-        Shallow merge an `updates` envelope into state.
+        Merge an `updates` envelope into state with:
+          - append semantics for list fields,
+          - last-write for scalars (unless policy='prefer_existing' blocks),
+          - provenance rows ONLY for fields actually applied,
+          - if nothing applied for the segment → ONE row with path/value = 'Not Found'.
 
-        - `updates` can be a plain dict or Pydantic model with shape:
-          { "updates": { "<section>": { ... } } }
-        - `prefer_existing`: do NOT overwrite an already provided value with a
-          missing placeholder ("Not provided" / empty list)
-        - `last_write`: always overwrite
-        - Tracks `meta.provided_fields` and `provenance`.
+        Notes:
+        - `updates` may be { "updates": { "<section>": {...} } } or a plain section dict.
+        - 'Not provided' is the state sentinel (no user input yet).
+        - 'Not Found' in provenance means extractor ran for this segment but yielded no applied fields.
         """
-        if updates is None:
-            return self
+        # Snapshot current state; start provenance accumulator with existing rows (as dicts)
+        data = self.model_dump(exclude_none=False)
+        prov_acc: List[Dict[str, Any]] = [
+            e.model_dump(exclude_none=False) if hasattr(e, "model_dump") else e
+            for e in self.provenance
+        ]
 
-        # normalize input
+        def append_prov(path: Optional[str], value: Optional[str]) -> None:
+            prov_acc.append({
+                "turnid": turn_id,
+                "section": domain,
+                "text": segment_text,
+                "path": (path or "Not Found"),
+                "value": ("Not Found" if value is None or value == NOT_PROVIDED else value),
+                "timestamp": timestamp,
+                "extractor": extractor,
+                "model": model_name,
+            })
+
+        # If no updates envelope at all → single Not Found row, no state change
+        if updates is None:
+            append_prov("Not Found", "Not Found")
+            data["provenance"] = prov_acc
+            return self.__class__.model_validate(data)
+
+        # Normalize input
         if hasattr(updates, "model_dump"):
             updates = updates.model_dump(exclude_none=False)
         if not isinstance(updates, dict):
-            return self
+            append_prov("Not Found", "Not Found")
+            data["provenance"] = prov_acc
+            return self.__class__.model_validate(data)
 
         upd_root = updates.get("updates") if "updates" in updates else updates
-        if not isinstance(upd_root, dict):
-            return self
+        if not isinstance(upd_root, dict) or not upd_root:
+            append_prov("Not Found", "Not Found")
+            data["provenance"] = prov_acc
+            return self.__class__.model_validate(data)
 
-        # current state → dict
-        data = self.model_dump(exclude_none=False)
-
-        # flatten incoming updates to dotted paths under each section
+        # Flatten incoming updates to dotted paths
         flat_updates: Dict[str, Any] = {}
         self._walk_and_collect("", upd_root, flat_updates)
 
-        # flatten current state for quick lookups
+        # Flatten current state for quick lookups
         cur_flat: Dict[str, Any] = {}
         self._walk_and_collect("", self, cur_flat)
+
+        captured_any = False
 
         for path, new_val in flat_updates.items():
             if path == "":
                 continue
 
-            # honor policy
+            # Policy guard: if prefer_existing and existing is provided while incoming is not → skip (no provenance row)
             if policy == "prefer_existing":
-                cur_val = cur_flat.get(path, None)
-                if self._is_provided(cur_val) and not self._is_provided(new_val):
-                    continue  # keep existing provided value
-
-            # actually write
-            self._set_by_path(data, path, new_val)
-
-            # track provided fields & provenance
-            if self._is_provided(new_val):
-                if path not in self.meta.provided_fields:
-                    self.meta.provided_fields.append(path)
-                self.provenance[path] = {
-                    "turn_id": turn_id,
-                    "timestamp": timestamp,
-                    "domain": domain,
-                    "extractor": extractor,
-                    "model": model_name,
-                }
-
-        # return re-validated instance
-        return self.__class__.model_validate(data)
-    def update_provided_fields(
-        self,
-        captures: list[dict],
-        dedupe: bool = True,
-    ) -> "ReportState":
-        """
-        Append parsed utterance-capture objects into meta.provided_fields.
-
-        Each capture should be shaped like:
-          { "section": <str>, "text": <str>, "path": <str>, "value": <str> }
-
-        - Uses append semantics (preserves order).
-        - If dedupe=True, drops exact duplicate entries.
-        """
-
-        if not captures:
-            return self
-
-        # normalize + validate
-        new_items = []
-        for c in captures:
-            if not isinstance(c, dict):
-                continue
-            if not all(k in c for k in ("section", "text", "path", "value")):
-                continue
-            new_items.append(c)
-
-        if not new_items:
-            return self
-
-        # grab current
-        current = list(getattr(self.meta, "provided_fields", []))
-
-        merged = current + new_items
-        if dedupe:
-            seen = set()
-            deduped = []
-            for obj in merged:
-                key = (
-                    obj.get("section"),
-                    obj.get("text"),
-                    obj.get("path"),
-                    obj.get("value"),
-                )
-                if key in seen:
+                cur_val_existing = cur_flat.get(path, None)
+                if self._is_provided(cur_val_existing) and not self._is_provided(new_val):
                     continue
-                seen.add(key)
-                deduped.append(obj)
-            merged = deduped
 
-        # return updated state
-        data = self.model_dump(exclude_none=False)
-        data["meta"]["provided_fields"] = merged
+            # Current value (from snapshot)
+            cur_val = cur_flat.get(path, None)
+
+            # List-typed path in state (append semantics)
+            if isinstance(cur_val, list):
+                if isinstance(new_val, list):
+                    if len(new_val) > 0:
+                        # append batch
+                        self._set_by_path(data, path, (cur_val or []) + new_val)
+                        append_prov(path, str(new_val))
+                        captured_any = True
+                    # else: empty incoming list → do nothing, no provenance
+                # If new_val is not a list for a list field, ignore (no change)
+
+            else:
+                # Scalar path in state: write value (respecting policy already checked)
+                self._set_by_path(data, path, new_val)
+                if self._is_provided(new_val):
+                    val_str = new_val if isinstance(new_val, str) else ("" if new_val is None else str(new_val))
+
+                    # --- BEGIN: corrections provenance de-dup for scalars ---
+                    # When doing a correction (policy='last_write'), keep only ONE active
+                    # provenance row for this (section, path). Remove prior rows before appending new.
+                    if policy == "last_write":
+                        prov_acc = [
+                            row for row in prov_acc
+                            if not (
+                                (row.get("section") == domain) and
+                                (row.get("path") == path)
+                            )
+                        ]
+                    # --- END
+
+                    append_prov(path, val_str)
+                    captured_any = True
+                # else: not provided → do nothing, no provenance
+
+        # If nothing applied at all for this segment, emit one Not Found row
+        if not captured_any:
+            append_prov("Not Found", "Not Found")
+
+        # Persist provenance and revalidate
+        data["provenance"] = prov_acc
         return self.__class__.model_validate(data)
+
 
 # =========================
 # Whats-left
@@ -338,4 +491,3 @@ def compute_whats_left(state: ReportState) -> Dict[str, List[str]]:
         missing[k] = sorted(set(missing[k]))
 
     return missing
-

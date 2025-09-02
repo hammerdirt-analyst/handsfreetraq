@@ -13,7 +13,7 @@ import sys
 from typing import Any, Dict, List, Optional
 
 # We import the module (not just the class) so we can patch its globals that Coordinator uses.
-import report_agent as _ra
+import coordinator_agent as _ra
 from report_state import ReportState  # ensures current_section exists
 from report_context import ReportContext
 

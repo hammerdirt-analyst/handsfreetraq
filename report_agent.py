@@ -1,328 +1,264 @@
 #!/usr/bin/env python3
-# report_agent.py — Coordinator v2: cursor-first routing with explicit-scope (multi-scope) handling
+"""
+Project: Arborist Agent
+File: report_agent.py
+Author: roger erismann
+
+ReportAgent
+-----------
+- Produces the initial draft report (all sections, from state + provenance).
+- Subsequent edits/corrections will be added later (Prompt B). For now, only Prompt A.
+
+Behavior
+- Inputs: full ReportState (all sections, including 'Not provided'), full provenance (deduped for scalar paths).
+- Output: Markdown with H2 subtitles per section, fixed order:
+    ## Area Description
+    ## Tree Description
+    ## Targets
+    ## Risks
+    ## Recommendations
+  Each paragraph is prefixed with a stable ID: [<section_id>-pN].
+  At the end of each section (first draft only), add a single "Editor Comment" paragraph
+  that briefly lists fields that were omitted / not provided for that section.
+
+- Deterministic call pattern via langchain_openai.ChatOpenAI.invoke([SystemMessage, HumanMessage]).
+- Token usage returned when available: {"in": <prompt_tokens>, "out": <completion_tokens>}.
+
+Methods & Classes
+- class ReportAgent:
+    - __init__(model: str|None = None, client: Any = None)
+    - has_draft() -> bool
+    - run(mode="draft", state, provenance, user_text="", temperature=0.35, style=None) -> dict
+    - _run_initial_draft(state, provenance, temperature, style) -> dict
+    - _system_prompt_initial(style) -> str
+    - _user_payload_initial(state, provenance, style) -> str
+    - _extract_token_usage(ai_message) -> (int, int)
+    - _postprocess_and_store(markdown_text) -> None
+
+Dependencies
+- External: langchain-openai, langchain-core, python-dotenv
+- Internal: report_state.ReportState, report_state.ProvenanceEvent, report_state.NOT_PROVIDED
+"""
 
 from __future__ import annotations
 
+from typing import Any, Dict, List, Literal, Optional, Tuple
 import json
 import os
 import re
-from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple, Literal
 
-from extractor_registry import default_registry
-from intent_llm import classify_intent_llm
-from report_state import ReportState, NOT_PROVIDED
-from report_context import ReportContext
-from one_turn_parser import parse_turn
-# --------------------------- coordinator logging ---------------------------
+# Ensure env vars are loaded from .env before reading OPENAI_*
+import dotenv
+dotenv.load_dotenv()
 
-COORD_LOG = "coordinator_logs/coordinator-tests.txt"
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import SystemMessage, HumanMessage
 
-def _now_iso() -> str:
-    return datetime.utcnow().isoformat(timespec="seconds") + "Z"
+from report_state import ReportState, ProvenanceEvent, NOT_PROVIDED
 
-def _write_log(block_header: str, payload: Dict[str, Any]) -> None:
-    os.makedirs(os.path.dirname(COORD_LOG) or ".", exist_ok=True)
-    with open(COORD_LOG, "a", encoding="utf-8") as f:
-        f.write("=" * 64 + "\n")
-        f.write(f"[{_now_iso()}] {block_header}\n")
-        f.write("-" * 64 + "\n")
-        f.write(json.dumps(payload, indent=2, ensure_ascii=False))
-        f.write("\n\n")
 
-# --------------------------- context-edit deflection ------------------------
+DraftSection = Dict[str, Any]  # {title: str, paragraphs: List[{id, text}]}
+DraftReport = Dict[str, DraftSection]
 
-_CTX_EDIT_RE = re.compile(
-    r"\b(customer|client|arborist|my\s+(name|phone|email|license)|"
-    r"(customer|client)\s+(name|phone|email|address)|"
-    r"(latitude|longitude|lat|lon|coordinates?))\b",
-    flags=re.IGNORECASE,
-)
 
-def _is_context_edit(text: str) -> bool:
-    return bool(_CTX_EDIT_RE.search(text or ""))
-
-def _blocked_context_response(utterance: str) -> Dict[str, Any]:
-    return {
-        "ok": False,
-        "intent": "PROVIDE_STATEMENT",
-        "routed_to": "blocked_context_edit",
-        "result": {"stub": "CONTEXT_EDIT_BLOCKED"},
-        "error": None,
-        "note": "Edits to arborist/customer/location are managed outside the report. Use the job setup screen.",
-        "utterance": utterance,
-    }
-
-# --------------------------- not-implemented stubs -------------------------
-
-def _handle_not_implemented(intent: str) -> Tuple[str, Dict[str, Any]]:
-    mapping = {
-        "REQUEST_SUMMARY": ("ReportNode", {"stub": "SUMMARY_NOT_IMPLEMENTED"}),
-        "REQUEST_REPORT": ("ReportNode", {"stub": "REPORT_NOT_IMPLEMENTED"}),
-        "WHAT_IS_LEFT": ("WhatsLeft", {"stub": "WHATS_LEFT_NOT_IMPLEMENTED"}),
-        "ASK_FIELD": ("None", {"stub": "UNHANDLED_INTENT"}),
-        "ASK_QUESTION": ("None", {"stub": "UNHANDLED_INTENT"}),
-        "SMALL_TALK": ("None", {"stub": "UNHANDLED_INTENT"}),
-    }
-    return mapping.get(intent, ("None", {"stub": "UNHANDLED_INTENT"}))
-
-# --------------------------- explicit scope parsing -------------------------
-
-_CANON = {
-    "area description": "area_description",
-    "tree description": "tree_description",
-    "targets": "targets",
-    "risks": "risks",
-    "recommendations": "recommendations",
-}
-
-# Any scope label anywhere in the utterance:
-#   "<Section>:"  OR  "(in|for|under|to) <Section> ..."
-_SCOPE_ANY_RX = re.compile(
-    r"(area description|tree description|targets|risks|recommendations)\s*:\s*|"
-    r"(?:\b(?:in|for|under|to)\s+)(area description|tree description|targets|risks|recommendations)\b[:\s]*",
-    re.I,
-)
-
-def _find_all_scopes(text: str) -> List[Tuple[int, int, str]]:
-    scopes: List[Tuple[int, int, str]] = []
-    for m in _SCOPE_ANY_RX.finditer(text or ""):
-        label = m.group(1) or m.group(2)
-        if label:
-            scopes.append((m.start(), m.end(), _CANON[label.lower()]))
-    return scopes
-
-def _parse_scoped_segments(user_text: str, current_section: str) -> List[Tuple[str, str]]:
-    """
-    Split an utterance into ordered (section, payload) segments.
-
-    Rules:
-      - If explicit scopes exist, each scope 'owns' text until the next scope or end-of-text.
-      - Unscoped lead-in (text before the first scope) is a segment for current_section.
-      - A scope with no trailing content is a navigation-only segment (empty payload).
-      - If no scopes exist, return [] and caller will run cursor-first.
-    """
-    text = user_text or ""
-    scopes = _find_all_scopes(text)
-    if not scopes:
-        return []
-
-    segments: List[Tuple[str, str]] = []
-
-    # Lead-in before the first scope → current_section
-    first_start, _, _ = scopes[0]
-    if first_start > 0:
-        lead = text[:first_start].strip()
-        if lead:
-            segments.append((current_section, lead))
-
-    # Scoped segments
-    for idx, (start, end, sec) in enumerate(scopes):
-        next_start = scopes[idx + 1][0] if idx + 1 < len(scopes) else len(text)
-        payload = text[end:next_start].strip()
-        segments.append((sec, payload))
-
-    return segments
-
-# ------------------------------- Coordinator --------------------------------
-
-class Coordinator:
-    """
-    Coordinator v2:
-      * Requires ReportContext at construction (read-only)
-      * Deflects attempted context edits
-      * Cursor-first routing with explicit-scope override, including multi-scope per turn
-    """
-
-    def __init__(self, context: ReportContext):
-        if context is None:
-            raise ValueError("ReportContext is required")
-        self.context = context
-        self.state = ReportState()
-        self.registry = default_registry()
-
-        # Log context presence at startup
-        _write_log("CONTEXT_LOADED", {
-            "arborist_loaded": self.context.arborist is not None,
-            "customer_loaded": self.context.customer is not None,
-            "location_loaded": self.context.location is not None,
-        })
-
-    # --- internal: filter “what’s left” with context-managed keys ----------
-    def _filter_missing_with_context(self, missing: Dict[str, List[str]]) -> Dict[str, List[str]]:
+class ReportAgent:
+    def __init__(self, model: Optional[str] = None, client: Any = None):
         """
-        Remove context-managed sections/paths from the missing map so the agent
-        never asks the user to supply them via chat.
+        Args:
+            model: OpenAI model name (used if client is None). Defaults to $OPENAI_MODEL or 'gpt-4o-mini'.
+            client: Optional injected Chat client with .invoke(messages).
         """
-        if not isinstance(missing, dict):
-            return missing
+        self._model_name = model or os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
+        self._client = client  # created lazily if None
+        self._draft_text: Optional[str] = None  # raw markdown draft (entire report)
+        self._draft_index: Optional[DraftReport] = None  # parsed section/paragraph index (future edits)
 
-        filtered = dict(missing)
-        for sec in ["arborist_info", "customer_info", "location"]:
-            filtered.pop(sec, None)
-        return filtered
+    def has_draft(self) -> bool:
+        return self._draft_text is not None
 
-    def handle_turn(self, user_text: str) -> Dict[str, Any]:
-        # Record the utterance (state holds only report-editable data)
-        self.state.current_text = user_text
+    def run(
+        self,
+        *,
+        mode: Literal["draft"] = "draft",
+        state: ReportState,
+        provenance: List[ProvenanceEvent],
+        user_text: str = "",
+        temperature: float = 0.35,
+        style: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """
+        mode='draft' → produce an initial full draft from state + provenance.
+        Returns a dict with keys: {draft_text, tokens, model}
+        """
+        if mode != "draft":
+            raise ValueError("ReportAgent currently supports mode='draft' only (Prompt A).")
 
-        # 1) Intent
-        try:
-            intent = classify_intent_llm(user_text).intent
-        except Exception as e:
-            payload = {
-                "utterance": user_text,
-                "intent": "INTENT_ERROR",
-                "routed_to": None,
-                "ok": False,
-                "result": None,
-                "error": f"Intent classifier unavailable: {e}",
-            }
-            _write_log("TURN (intent error)", payload)
-            return payload
+        return self._run_initial_draft(
+            state=state, provenance=provenance, temperature=temperature, style=style or {}
+        )
 
-        # 2) Context-edit deflection
-        if intent == "PROVIDE_STATEMENT" and _is_context_edit(user_text):
-            out = _blocked_context_response(user_text)
-            _write_log("TURN", out)
-            return out
+    # ------------------------- Prompt A (initial draft) -------------------------
 
-        routed_to: Optional[str] = None
-        ok = False
-        result_payload: Optional[Dict[str, Any]] = None
-        error: Optional[str] = None
+    def _run_initial_draft(
+        self,
+        *,
+        state: ReportState,
+        provenance: List[ProvenanceEvent],
+        temperature: float,
+        style: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        system = self._system_prompt_initial(style)
+        user = self._user_payload_initial(state, provenance, style)
 
-        # 3) Provide-statement path: cursor-first with explicit-scope (multi-scope) handling
-        if intent == "PROVIDE_STATEMENT":
-            routed_to = "cursor → extractor (with explicit-scope segments)"
-            try:
-                # Build segments; if none found, do a single cursor-first segment
-                segments = _parse_scoped_segments(user_text, self.state.current_section)
-                if not segments:
-                    segments = [(self.state.current_section, user_text or "")]
+        client = self._client or ChatOpenAI(model=self._model_name, temperature=temperature)
+        ai_msg = client.invoke([SystemMessage(content=system), HumanMessage(content=user)])
 
-                updates_aggregate: Dict[str, Any] = {}
-                provided_all: List[str] = []
-                any_captured = False
-                segment_results: List[Dict[str, Any]] = []
+        text = (ai_msg.content or "").strip()
+        # Minimal cleanup: collapse trailing spaces
+        text = re.sub(r"[ \t]+(\n|$)", r"\1", text)
 
-                for seg_section, payload in segments:
-                    # Update conversational context to this segment's section
-                    self.state.current_section = seg_section
+        tok_in, tok_out = self._extract_token_usage(ai_msg)
 
-                    # Navigation-only segment: skip extractor
-                    if not payload.strip():
-                        segment_results.append({
-                            "section": seg_section, "note": "navigation_only", "provided_fields": []
-                        })
-                        continue
+        # Store draft internally for future edit mode (Prompt B)
+        self._postprocess_and_store(text)
 
-                    # Run the single extractor for this segment
-                    ex = self.registry.get(seg_section)
-                    out = ex.extract_dict(payload, temperature=0.0, max_tokens=300)
-
-                    result_obj = out.get("result") or out
-                    updates = (result_obj.get("updates") or {})
-                    provided = out.get("provided_fields") or []
-
-                    if provided:
-                        any_captured = True
-                        provided_all.extend(provided)
-
-                        # Merge into state (prefer existing) with provenance
-                        self.state = self.state.model_merge_updates(
-                            updates,
-                            policy="prefer_existing",
-                            turn_id=_now_iso(),
-                            timestamp=_now_iso(),
-                            domain=seg_section,
-                            extractor=ex.__class__.__name__,
-                            model_name=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
-                        )
-
-                        # Aggregate a shallow echo of produced updates
-                        for section_key, payload_block in updates.items():
-                            if section_key not in updates_aggregate:
-                                updates_aggregate[section_key] = payload_block
-                            else:
-                                def _merge(dst, src):
-                                    if isinstance(dst, dict) and isinstance(src, dict):
-                                        for k, v in src.items():
-                                            if k in dst and isinstance(dst[k], dict) and isinstance(v, dict):
-                                                _merge(dst[k], v)
-                                            else:
-                                                dst[k] = v
-                                _merge(updates_aggregate[section_key], payload_block)
-
-                        segment_results.append({
-                            "section": seg_section, "note": "captured",
-                            "provided_fields": sorted(set(provided))
-                        })
-                    else:
-                        segment_results.append({
-                            "section": seg_section, "note": "no_capture", "provided_fields": []
-                        })
-
-                # Build turn result
-                if any_captured:
-                    result_payload = {
-                        "updates": updates_aggregate,
-                        "provided_fields": sorted(set(provided_all)),
-                        "segments": segment_results,
-                        "final_section": self.state.current_section,
-                        "note": "captured",
-                    }
-                    ok = True
-                else:
-                    result_payload = {
-                        "updates": {},
-                        "provided_fields": [],
-                        "segments": segment_results,
-                        "final_section": self.state.current_section,
-                        "note": "no_capture",
-                        "clarify": (
-                            f"I didn't capture anything for {self.state.current_section.replace('_',' ')} from that. "
-                            "You can rephrase, or say e.g. 'Tree Description: DBH is 24 in'."
-                        ),
-                    }
-                    ok = True
-
-            except Exception as e:
-                error = f"ProvideData error: {e}"
-                ok = False
-
-        # 4) Other intents → stub handoff (no extractor calls here)
-        elif intent == "REQUEST_SERVICE":
-            routed_to = "RequestService"
-            try:
-                result_payload = {
-                    "stub": "REQUEST_FORWARDED_TO_SERVICE_AGENT",
-                    "utterance": user_text
-                }
-                ok = True
-            except Exception:
-                routed_to, result_payload = _handle_not_implemented(intent)
-                ok = False
-        else:
-            routed_to, result_payload = _handle_not_implemented(intent)
-            ok = False
-
-        output = {
-            "utterance": user_text,
-            "intent": intent,
-            "routed_to": routed_to,
-            "ok": ok,
-            "result": result_payload,
-            "error": error,
+        return {
+            "draft_text": text,
+            "tokens": {"in": tok_in, "out": tok_out},
+            "model": self._model_name,
         }
-        captures = parse_turn(output)
-        self.state = self.state.update_provided_fields(captures)
 
-        _write_log("TURN", {
-            **output,
-            "state_meta_provided_fields": self.state.meta.provided_fields,
+    @staticmethod
+    def _system_prompt_initial(style: Dict[str, Any]) -> str:
+        """
+        Drafting rules for the first pass.
+        """
+        reading = str(style.get("reading_level", "general"))
+        length = str(style.get("length", "medium"))
+        # NOTE: Section order updated per request; add Editor Comment at end of each section.
+        return (
+            "You are an arborist reporting assistant.\n"
+            "TASK: Write a complete initial draft of the arborist report from the provided JSON.\n"
+            "RULES:\n"
+            "1) Use ONLY facts present in the JSON state/provenance. Do NOT invent facts.\n"
+            "2) Ignore fields with the exact string 'Not provided' and empty arrays in the body text.\n"
+            "3) Output Markdown with exactly these H2s, in this order:\n"
+            "   ## Area Description\n"
+            "   ## Tree Description\n"
+            "   ## Targets\n"
+            "   ## Risks\n"
+            "   ## Recommendations\n"
+            "4) Under each H2, write 1–3 coherent paragraphs. Keep sentences concise.\n"
+            "5) Prefix each paragraph with an ID: [<section_id>-pN], e.g., [tree_description-p1].\n"
+            "6) Use units present in the JSON verbatim (do not convert or add estimates).\n"
+            "7) After the body paragraphs in each section, add one final paragraph titled 'Editor Comment:'\n"
+            "   that briefly lists any fields in that section that were omitted or marked 'Not provided'.\n"
+            "   Keep this comment to a single concise sentence (comma-separated field names). If nothing\n"
+            "   is missing, write 'Editor Comment: All primary fields provided.'\n"
+            "8) Do not generalize beyond what’s in JSON; avoid filler phrases.\n"
+            f"9) Tone: neutral, professional. Reading level: {reading}. Target overall length: {length}.\n"
+            "10) Output only Markdown (no JSON, no YAML).\n"
+        )
 
-        })
-        return output
+    @staticmethod
+    def _user_payload_initial(
+        state: ReportState, provenance: List[ProvenanceEvent], style: Dict[str, Any]
+    ) -> str:
+        """
+        Single JSON blob the model will rely on for factual content. We include the exact
+        section snapshots and the full (deduped) provenance so the model can favor confirmed values.
+        """
+        def dump(obj):
+            return obj.model_dump(exclude_none=False) if hasattr(obj, "model_dump") else obj
 
-        return output
+        sections = {
+            "area_description": dump(getattr(state, "area_description")),
+            "tree_description": dump(getattr(state, "tree_description")),
+            "targets": dump(getattr(state, "targets")),
+            "risks": dump(getattr(state, "risks")),
+            "recommendations": dump(getattr(state, "recommendations")),
+        }
+
+        prov_rows = []
+        for p in provenance or []:
+            prov_rows.append(dump(p))
+
+        payload = {
+            "version": "report_initial_v1",
+            "style": {
+                "reading_level": style.get("reading_level", "general"),
+                "length": style.get("length", "medium"),
+            },
+            "sections": sections,
+            "provenance": prov_rows,
+            "not_provided_token": NOT_PROVIDED,
+            "output_contract": {
+                "format": "markdown",
+                "headings": [
+                    "Area Description",
+                    "Tree Description",
+                    "Targets",
+                    "Risks",
+                    "Recommendations",
+                ],
+                "paragraph_ids": "[<section_id>-pN]",
+                "section_id_map": {
+                    "Area Description": "area_description",
+                    "Tree Description": "tree_description",
+                    "Targets": "targets",
+                    "Risks": "risks",
+                    "Recommendations": "recommendations",
+                },
+                "editor_comment": "At end of each section, add 'Editor Comment:' paragraph listing omitted fields.",
+            },
+        }
+        return json.dumps(payload, ensure_ascii=False)
+
+    @staticmethod
+    def _extract_token_usage(ai_message: Any) -> Tuple[int, int]:
+        try:
+            meta = getattr(ai_message, "response_metadata", {}) or {}
+            usage = meta.get("token_usage") or {}
+            if usage:
+                return int(usage.get("prompt_tokens", 0) or 0), int(usage.get("completion_tokens", 0) or 0)
+        except Exception:
+            pass
+        try:
+            usage2 = getattr(ai_message, "usage_metadata", {}) or {}
+            if usage2:
+                return int(usage2.get("input_tokens", 0) or 0), int(usage2.get("output_tokens", 0) or 0)
+        except Exception:
+            pass
+        return 0, 0
+
+    def _postprocess_and_store(self, markdown_text: str) -> None:
+        """
+        Persist the raw draft and build a simple index of paragraph IDs per section.
+        (We keep it light; detailed edit coordination comes with Prompt B.)
+        """
+        self._draft_text = markdown_text
+        index: DraftReport = {}
+        # simple parser: find H2 sections and collect paragraphs with [section-pN] tags
+        current_section = None
+        for block in re.split(r"\n\s*\n", markdown_text.strip()):
+            # heading?
+            m_h2 = re.match(r"^##\s+([A-Za-z_ ]+)\s*$", block.strip())
+            if m_h2:
+                name = m_h2.group(1).strip()
+                sec_id = name.lower().replace(" ", "_")
+                current_section = sec_id
+                index.setdefault(current_section, {"title": name, "paragraphs": []})
+                continue
+            if current_section:
+                # paragraph lines may include the [section-pN] marker
+                m_id = re.match(r"^\s*\[([a-z_]+-p\d+)\]\s*(.+)$", block.strip(), flags=re.DOTALL)
+                if m_id:
+                    pid, ptext = m_id.group(1), m_id.group(2).strip()
+                    index[current_section]["paragraphs"].append({"id": pid, "text": ptext})
+                else:
+                    # if no ID, keep as-is but tag it with a synthesized id (rare)
+                    idx = len(index[current_section]["paragraphs"]) + 1
+                    index[current_section]["paragraphs"].append(
+                        {"id": f"{current_section}-p{idx}", "text": block.strip()}
+                    )
+        self._draft_index = index

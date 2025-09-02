@@ -1,0 +1,74 @@
+.
+├── cli.py
+├── coordinator_agent.py
+├── coordinator_logs
+│   └── coordinator-tests.txt
+├── corrections_agent.py
+├── corrections_ping.py
+├── deprecate
+│   ├── one_turn_parser.py
+│   └── router_spec.json
+├── doc.md
+├── docs
+│   └── projectupdate.md
+├── environment.yml
+├── extractor_registry.py
+├── intent_model.py
+├── llm_ping.py
+├── models.py
+├── print_dir.py
+├── project_structure.txt
+├── __pycache__
+│   ├── corrections_agent.cpython-311.pyc
+│   ├── extractor_registry.cpython-311.pyc
+│   ├── models.cpython-311.pyc
+│   ├── report_agent.cpython-311.pyc
+│   ├── report_context.cpython-311.pyc
+│   ├── report_state.cpython-311.pyc
+│   ├── router_test.cpython-311-pytest-8.4.1.pyc
+│   ├── section_report_agent.cpython-311.pyc
+│   ├── service_classifier.cpython-311.pyc
+│   ├── service_router.cpython-311.pyc
+│   ├── state.cpython-311.pyc
+│   ├── test_data.cpython-311-pytest-8.4.1.pyc
+│   └── test_service_router.cpython-311-pytest-8.4.1.pyc
+├── report_agent.py
+├── report_context.py
+├── report_ping.py
+├── report_state.py
+├── section_ping.py
+├── section_report_agent.py
+├── service_classifier.py
+├── service_router.py
+└── tests
+    ├── conftest.py
+    ├── full
+    │   ├── conftest.py
+    │   ├── __pycache__
+    │   ├── test_provide_statement_llm.py
+    │   └── test_request_services_llm.py
+    ├── __init__.py
+    ├── integrations
+    │   ├── __pycache__
+    │   ├── test_logging_stability.py
+    │   ├── test_pipeline_provide_statement.py
+    │   └── test_pipeline_request_service.py
+    ├── __pycache__
+    │   ├── conftest.cpython-311-pytest-8.4.1.pyc
+    │   ├── __init__.cpython-311.pyc
+    │   └── test_data.cpython-311.pyc
+    ├── router_test.py
+    ├── TEST_CORPUS.py
+    ├── test_data.py
+    ├── test_service_router.py
+    ├── test_strategy.md
+    └── unit
+        ├── __pycache__
+        ├── test_context_block.py
+        ├── test_intent_classifier.py
+        ├── test_request_service_backstop.py
+        ├── test_segmentation.py
+        ├── test_service_router.py
+        └── test_state_merge.py
+
+13 directories, 59 files

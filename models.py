@@ -1,7 +1,29 @@
 """
-arborist-agent/models.py
-author: roger erismann
+Project: Arborist Agent
+File: models.py
+Author: roger erismann
+
+LLM wiring (ModelFactory), strict JSON schemas for extractors, a BaseExtractor
+protocol, presence computation, and concrete extractor implementations for all sections.
+
+Methods & Classes
+- Constants: NOT_PROVIDED
+- class ModelFactory: get() -> outlines model (cached); reads OPENAI_API_KEY/OPENAI_MODEL.
+- build_prompt(..., user_text: str) -> str: common JSON-only, verbatim-copy prompt builder.
+- class BaseExtractor:
+  - build_prompt(user_text) -> str  # to implement
+  - extract(user_text, *, temperature=0.0, max_tokens=300) -> pydantic model
+  - extract_dict(user_text, **kwargs) -> dict: {"result": parsed, "provided_fields": [...]}
+- compute_presence(parsed_envelope: dict) -> list[str]: dotted paths with provided (non-sentinel) values.
+- Concrete extractors (schema_cls set appropriately):
+  - ArboristInfoExtractor, CustomerInfoExtractor, TreeDescriptionExtractor,
+    RisksExtractor, AreaDescriptionExtractor, TargetExtractor, RecommendationsExtractor
+
+Dependencies
+- External: outlines, openai, pydantic
+- Stdlib: os, json, functools.lru_cache, typing
 """
+
 
 # Reusable extractors for arborist_agent — Outlines 1.2.3 + OpenAI v1
 from __future__ import annotations

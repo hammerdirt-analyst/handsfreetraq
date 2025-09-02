@@ -1,4 +1,25 @@
-# nodes/intent_llm.py
+"""
+Project: Arborist Agent
+File: intent_model.py
+Author: roger erismann
+
+LLM intent classifier that maps a user utterance to exactly one label:
+PROVIDE_STATEMENT or REQUEST_SERVICE. Designed for JSON-only, strict schema.
+
+Methods & Classes
+- type IntentLabel = Literal['PROVIDE_STATEMENT','REQUEST_SERVICE']
+- @dataclass IntentOutput { intent: IntentLabel }
+- class IntentSchema(pydantic): { intent } with extra="forbid"
+- classify_intent_llm(utterance: str) -> IntentOutput
+  - Validates environment (LLM_BACKEND=openai), builds short JSON-only prompt,
+    calls ModelFactory.get(), validates parsed label.
+
+Dependencies
+- Internal: models.ModelFactory
+- External: pydantic
+- Stdlib: os, dataclasses, typing
+"""
+
 from __future__ import annotations
 import os
 from dataclasses import dataclass
