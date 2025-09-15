@@ -9,6 +9,17 @@ End-to-end smoke:
 """
 
 import os
+
+# --- repo path bootstrap (keep at top of file) ---
+from pathlib import Path
+import sys
+
+# Resolve repo root as the parent of the `pings` folder
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+# --- end bootstrap ---
+
 import json
 from datetime import datetime
 
@@ -224,23 +235,24 @@ def main():
     # 3) Run ReportAgent initial draft (Prompt A)
     agent = ReportAgent()
     out = agent.run(mode="draft", state=state, provenance=state.provenance, temperature=0.35)
-
-    # 4) Print summary + full draft
+    draft = out["draft_text"]
+    hdrs = ["## Area Description", "## Tree Description", "## Targets", "## Risks", "## Recommendations"]
+    has_all_h2s = all(h in draft for h in hdrs)
+    has_para_ids = "[area_description-p1]" in draft or "[tree_description-p1]" in draft
+    if hasattr(state, "add_tokens"):
+        state = state.add_tokens("report_agent", out.get("tokens", {"in": 0, "out": 0}))
+        print("has attribute")
+    else:
+        print("no attribute")
     header = {
         "model": out.get("model"),
-        "tokens": out.get("tokens"),
+        "tokens": out.get("tokens"),  # {"in": int, "out": int}
         "provenance_rows": len(state.provenance),
-        "sections_filled": {
-            "area_description": True,
-            "tree_description": True,
-            "targets": True,
-            "risks": True,
-            "recommendations": True,
-        },
+        "structure_ok": bool(has_all_h2s and has_para_ids),
     }
     print(json.dumps(header, ensure_ascii=False, indent=2))
     print("\n----- DRAFT (Markdown) -----\n")
-    print(out["draft_text"])
+    print(draft)
 
 
 if __name__ == "__main__":

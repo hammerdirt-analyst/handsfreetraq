@@ -1,0 +1,108 @@
+diff --git a/arborist_report/coordinator_agent.py b/arborist_report/coordinator_agent.py
+index 6b0a2cd..96a9f81 100644
+--- a/arborist_report/coordinator_agent.py
++++ b/arborist_report/coordinator_agent.py
+@@ -14,8 +14,8 @@ from arborist_report.report_agent import ReportAgent
+ from arborist_report.corrections_agent import CorrectionsAgent
+ from arborist_report.service_router import classify_service
+-from arborist_report.service_classifier import ServiceRouterClassifier
+ from arborist_report.intent_model import classify_intent_llm
+ from arborist_report.extractor_registry import default_registry
++from arborist_report.models import ServiceRouterExtractor  # backstop as extractor
+
+ # Unified error handling
+ from arborist_report.error_handler import (
+@@ -186,6 +186,8 @@ class Coordinator:
+         deterministic_hit: Optional[bool] = None
+         backstop_used: Optional[bool] = None
+-        backstop_conf: Optional[float] = None
++        backstop_conf: Optional[float] = None  # exposed in router as backstop_confidence
++        backstop_threshold: Optional[float] = None
++        backstop_accept: Optional[bool] = None
+
+         # 1) Intent
+         try:
+@@ -271,28 +273,49 @@ class Coordinator:
+
+                 # LLM backstop if NONE
+                 if service == "NONE":
+                     try:
+-                        clf = ServiceRouterClassifier()
+-                        pred = clf.classify(user_text)  # -> ServiceRouteOutput
+-                        self.state = self.state.add_tokens("service_backstop", pred.tokens)
++                        # Resolve threshold (default 0.60)
++                        backstop_threshold = float(os.getenv("ROUTING_BACKSTOP_MIN_CONF", "0.60"))
++
++                        # Run extractor-style service router
++                        srx = ServiceRouterExtractor()
++                        out = srx.extract_dict(user_text, temperature=0.0, max_tokens=256)
++
++                        # Token accounting
++                        self.state = self.state.add_tokens("service_backstop", out.get("tokens", {"in": 0, "out": 0}))
++
+                         backstop_used = True
+-                        backstop_conf = float(getattr(pred, "confidence", 0.0) or 0.0)
+-                        if backstop_conf >= 0.60 and getattr(pred, "service", "NONE") != "NONE":
+-                            service = pred.service
+-                            section = getattr(pred, "section", None)
++                        route = out.get("result", {})  # {"service","section","confidence"}
++                        confidence = float(route.get("confidence", 0.0) or 0.0)
++                        backstop_conf = confidence  # expose later as router.backstop_confidence
++
++                        # Accept only if confidence >= threshold AND not NONE
++                        pred_service = route.get("service", "NONE")
++                        pred_section = route.get("section")
++                        backstop_accept = bool(confidence >= backstop_threshold and pred_service != "NONE")
++                        if backstop_accept:
++                            service = pred_service
++                            section = pred_section
+                         else:
+                             service = "CLARIFY"
+                             section = None
+-                    except Exception as e:
+-                        payload = {
++                    except Exception as e:
++                        # Hard backstop failure: return structured error, keep router telemetry
++                        err_obj = make_error(
++                            code=ErrorCode.ROUTER_BACKSTOP_UNAVAILABLE,
++                            origin=ErrorOrigin.BACKSTOP,
++                            retryable=True,
++                            user_message="I couldn’t resolve that request right now. Do you want a section summary, an outline, or a full draft?",
++                            next_actions=[NextAction.ASK_SECTION, NextAction.REQUEST_DRAFT],
++                            dev_message=f"{type(e).__name__}: {e}",
++                            details={"component": "ServiceRouterExtractor"},
++                            correlation_id=_cid,
++                        )
++                        payload = {
+                             "utterance": user_text,
+                             "intent": intent,
+                             "routed_to": "RequestService",
+                             "ok": False,
+                             "result": _empty_turnpacket(),
+                             "router": {
+                                 "deterministic_hit": deterministic_hit,
+                                 "backstop_used": True,
+-                                "backstop_confidence": None,
+-                            },
+-                            "error": f"Service routing error: {e}",
++                                "backstop_confidence": None,
++                                "backstop_threshold": backstop_threshold,
++                                "backstop_accept": None,
++                            },
++                            "error": err_obj,
+                         }
+                         _write_log("TURN", payload)
+                         return payload
+@@ -397,7 +420,11 @@ class Coordinator:
+             "router": {
+                 "deterministic_hit": deterministic_hit if intent == "REQUEST_SERVICE" else None,
+                 "backstop_used": backstop_used if intent == "REQUEST_SERVICE" else None,
+                 "backstop_confidence": backstop_conf if intent == "REQUEST_SERVICE" else None,
++                # expose threshold & accept flag for telemetry/debug (None when not applicable)
++                "backstop_threshold": backstop_threshold if intent == "REQUEST_SERVICE" else None,
++                "backstop_accept": backstop_accept if intent == "REQUEST_SERVICE" else None,
+             },
+             "error": (
+                 error
+                 if (isinstance(error, dict) or error is None)
+                 else wrap_legacy_error(str(error), correlation_id=_cid)

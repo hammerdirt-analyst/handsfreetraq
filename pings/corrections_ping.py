@@ -1,7 +1,15 @@
 # quick_ping_corrections_agent.py
 import os, json
-from report_state import ReportState
-from corrections_agent import CorrectionsAgent
+from arborist_report.report_state import ReportState
+from arborist_report.corrections_agent import CorrectionsAgent
+
+from pathlib import Path
+import sys
+
+# Resolve repo root as the parent of the `pings` folder
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 # assume dotenv has been loaded via module import
 os.environ.setdefault("OPENAI_MODEL", "gpt-4o-mini")

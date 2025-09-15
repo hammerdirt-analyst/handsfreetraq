@@ -58,3 +58,9 @@ def configure_coord_log_root():
 
     os.environ.setdefault("OPENAI_MODEL", "gpt-4o-mini")
     yield
+
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers",
+        "live: tests that make live network/model calls and are skipped unless RUN_LIVE=1",
+    )

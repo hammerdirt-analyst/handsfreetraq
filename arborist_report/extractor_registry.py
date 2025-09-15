@@ -2,9 +2,14 @@
 Project: Arborist Agent
 File: extractor_registry.py
 Author: roger erismann
+Assistant: chatGPT5
+code review: chatGPT5
 
 Validating registry that maps canonical section ids to extractor classes and
 returns fresh extractor instances. Ensures required sections exist and catches typos.
+
+For each section of the report there is an extractor. Each extractor has pydantic model
+that defines the fields and types.
 
 Methods & Classes
 - REQUIRED_SECTIONS: canonical mapping of section -> extractor class.
@@ -25,12 +30,13 @@ from typing import Dict, Type
 import logging
 
 # import your concrete extractors
-from models import (
+from arborist_report.models import (
     TreeDescriptionExtractor,
     AreaDescriptionExtractor,
     TargetExtractor,
     RisksExtractor,
     RecommendationsExtractor,
+
 )
 
 LOGGER = logging.getLogger("arb.registry")

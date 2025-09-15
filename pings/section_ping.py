@@ -1,5 +1,15 @@
 # quick_ping_section_agent.py
-import os, json
+import json
+# --- repo path bootstrap (keep at top of file) ---
+from pathlib import Path
+import sys
+
+# Resolve repo root as the parent of the `pings` folder
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+# --- end bootstrap ---
+
 from report_state import ReportState
 from section_report_agent import SectionReportAgent
 from report_context import _build_context_from_testdata

@@ -2,9 +2,17 @@
 Project: Arborist Agent
 File: report_context.py
 Author: roger erismann
+Assistant: chatGPT5
+code review: chatGPT5
 
 Read-only job context (“who/where”) injected into the Coordinator at startup.
 Strict Pydantic models; the Coordinator must not mutate this context.
+
+The report context identifies the arborist, the client, the tree and the job number. It defines the subject of the report.
+Report context can be added through local_store.inbox.pending_jobs.jsonl. Once the arborist accepts the context it can not
+be edited through the coordinator or top agent application.
+
+context can be manually added or edited (prior to accepting) by the arborist using the job notes interface.
 
 Methods & Classes
 - AddressCtx, ArboristInfoCtx, CustomerInfoCtx, LocationCtx: strict context submodels.
@@ -20,8 +28,6 @@ Dependencies
 from __future__ import annotations
 from pydantic import BaseModel, Field, ConfigDict
 
-# ---- Context models (read-only “who/where” for the job) --------------------
-
 class AddressCtx(BaseModel):
     street: str = Field(...)
     city: str = Field(...)
@@ -36,6 +42,7 @@ class ArboristInfoCtx(BaseModel):
     phone: str = Field(...)
     email: str = Field(...)
     license: str = Field(...)
+    certification: str = Field(...)  # <-- added
     address: AddressCtx = Field(...)
     model_config = ConfigDict(extra="forbid")
 
@@ -52,18 +59,18 @@ class LocationCtx(BaseModel):
     longitude: float = Field(...)
     model_config = ConfigDict(extra="forbid")
 
-class ReportContext(BaseModel):
-    """
-    Read-only job context injected into the Coordinator at startup.
-    The Coordinator **must not** mutate this.
-    """
-    arborist: ArboristInfoCtx
-    customer: CustomerInfoCtx
-    location: LocationCtx
+class JobNumber(BaseModel):
+    job_id: str = Field(...)
     model_config = ConfigDict(extra="forbid")
 
-# ---- Helper: build context from test_data fixtures -------------------------
+class ReportContext(BaseModel):
+    job_id: str = Field(...)
+    arborist: ArboristInfoCtx = Field(...)
+    customer: CustomerInfoCtx = Field(...)
+    location: LocationCtx = Field(...)
+    model_config = ConfigDict(extra="forbid")
 
+# ! deprecate
 def _build_context_from_testdata() -> ReportContext:
     """
     Convenience for local/dev runs: constructs ReportContext

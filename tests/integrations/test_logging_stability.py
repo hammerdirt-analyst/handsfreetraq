@@ -8,7 +8,6 @@ import pytest
 import coordinator_agent
 from coordinator_agent import Coordinator
 from report_context import _build_context_from_testdata
-from report_state import NOT_PROVIDED
 
 
 # ---- tiny fakes (reuse pattern from other integration tests) ----

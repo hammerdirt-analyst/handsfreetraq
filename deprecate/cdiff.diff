@@ -1,0 +1,185 @@
+--- a/arborist_report/coordinator_agent.py
++++ b/arborist_report/coordinator_agent.py
+@@ -64,6 +64,8 @@ from arborist_report.intent_model import classify_intent_llm
+ from arborist_report.extractor_registry import default_registry
+ from arborist_report.error_handler import make_error, wrap_legacy_error, ErrorCode, ErrorOrigin, NextAction, new_correlation_id
++from arborist_report.app_logger import log_event as _log_event
++from arborist_report.app_logger import log_turn_packet as _log_turn
+
+ # ----------------------------- small utils -----------------------------
+
+@@ -82,17 +84,6 @@ def _empty_turnpacket() -> Dict[str, Any]:
+         "preview": {"summary_text": None, "draft_excerpt": None},
+     }
+
+-def _write_log(event: str, payload: Dict[str, Any]) -> None:
+-    # Minimal, don’t crash on logging
+-    try:
+-        from pathlib import Path
+-        p = Path("coordinator_logs") / f"log_{_now_iso().replace(':','-')}.jsonl"
+-        p.parent.mkdir(parents=True, exist_ok=True)
+-        with p.open("a", encoding="utf-8") as f:
+-            import json
+-            f.write(json.dumps({"event": event, "payload": payload}, ensure_ascii=False) + "\n")
+-    except Exception:
+-        pass
+
+ def _is_context_edit(text: str) -> bool:
+     t = (text or "").lower()
+@@ -162,7 +153,11 @@ class Coordinator:
+         self.state = ReportState()
+         self.registry = default_registry()
+
+-        _write_log(
++        # System log: context presence snapshot (non-turn)
++        _log_event(
++            "Coordinator.CONTEXT_LOADED",
++            {
++                "arborist_loaded": self.context.arborist is not None,
++                "customer_loaded": self.context.customer is not None,
++                "location_loaded": self.context.location is not None,
++            },
+-            {
+-                "arborist_loaded": self.context.arborist is not None,
+-                "customer_loaded": self.context.customer is not None,
+-                "location_loaded": self.context.location is not None,
+-            },
+         )
+@@ -233,6 +228,7 @@ class Coordinator:
+         """
+         _cid = new_correlation_id("turn")
+         self.state.current_text = user_text
++        backstop_accept: Optional[bool] = None  # ensure defined for final router block
+
+         # Router transparency defaults
+         deterministic_hit: Optional[bool] = None
+@@ -262,7 +258,8 @@ class Coordinator:
+                 },
+-                "error":err,
++                "error": err,
++                "correlation_id": _cid,
+             }
+-            _write_log("TURN (intent error)", payload)
++            _log_turn(payload, correlation_id=_cid)
+             return payload
+
+         # 2) Context-edit deflection
+         if intent == "PROVIDE_STATEMENT" and _is_context_edit(user_text):
+             out = _blocked_context_response(user_text)
+-            _write_log("TURN", out)
++            out["correlation_id"] = _cid
++            _log_turn(out, correlation_id=_cid)
+             return out
+@@ -349,14 +346,14 @@ class Coordinator:
+-            except Exception as e:
+-                error = f"ProvideData error: {e}"
+-                ok = False
+-
+             except Exception as e:
+                 # Treat unexpected failures during extraction/merge as extractor failures by default.
+                 # (If you later split try/except around merge, switch to MERGE_CONFLICT there.)
+                 err_obj = make_error(
+                     code = ErrorCode.EXTRACTOR_FAILURE,
+                     origin = ErrorOrigin.EXTRACTOR,
+                     retryable = True,
+                     user_message = "I couldn’t pull structured details from that text. Want to try rephrasing or switch sections?",
+                     next_actions = [NextAction.TRY_REPHRASE, NextAction.SWITCH_SECTION, NextAction.MAKE_CORRECTION],
+                     dev_message = f"{type(e).__name__}: {e}",
+                     details = {"section": getattr(self.state, 'current_section', None)},
+                     context = {"section": getattr(self.state, 'current_section', None)},
+                     correlation_id = _cid,
+                 )
+                 # Preserve legacy string in local var for compatibility (not used downstream)
+                 error = err_obj["user_message"]
+                 result_payload = _empty_turnpacket()
+                 ok = False
+                 # Replace string error with structured error at return payload
+                 payload = {
+                     "utterance": user_text, "intent": intent, "routed_to": routed_to, "ok": ok,
+                     "result": result_payload,
+                     "router": {"deterministic_hit": None, "backstop_used": None, "backstop_confidence": None},
+-                    "error": err_obj
++                    "error": err_obj,
++                    "correlation_id": _cid,
+                 }
+-
+-                _write_log("TURN", payload)
+-
+-                return payload
++                _log_turn(payload, correlation_id=_cid)
++                return payload
+
+         # 4) Request-Service path
+         elif intent == "REQUEST_SERVICE":
+@@ -381,7 +378,7 @@ class Coordinator:
+                         route = out.get("result", {})  # {"service","section","confidence"}
+                         confidence = float(route.get("confidence", 0.0) or 0.0)
+-                        backstop_conf = confidence  # expose later as router.backstop_confidence
++                        backstop_confidence = confidence  # expose later as router.backstop_confidence
+
+                         # Accept only if confidence >= threshold AND not NONE
+                         pred_service = route.get("service", "NONE")
+@@ -412,7 +409,9 @@ class Coordinator:
+                             "router": {
+                                 "deterministic_hit": deterministic_hit,
+                                 "backstop_used": True,
+                                 "backstop_confidence": None,
+                                 "backstop_threshold": backstop_threshold,
+                                 "backstop_accept": None,
+                             },
+-                            "error": err_obj,
++                            "error": err_obj,
++                            "correlation_id": _cid,
+                         }
+-                        _write_log("TURN", payload)
++                        _log_turn(payload, correlation_id=_cid)
+                         return payload
+@@ -505,17 +504,19 @@ class Coordinator:
+-            except Exception as e:
+-                error = f"Service routing error: {e}"
+-                ok = False
++            except Exception as e:
++                # Fallback catch for unexpected failures in the request-service branch.
++                err_obj = make_error(
++                    code=ErrorCode.ROUTER_DETERMINISTIC_ERROR,
++                    origin=ErrorOrigin.DETERMINISTIC,
++                    retryable=True,
++                    user_message="I couldn’t route that request. Which section do you want to work on?",
++                    next_actions=[NextAction.ASK_SECTION, NextAction.REQUEST_DRAFT],
++                    dev_message=f"{type(e).__name__}: {e}",
++                    correlation_id=_cid,
++                )
++                payload = {"utterance": user_text, "intent": intent, "routed_to": routed_to, "ok": False,
++                           "result": _empty_turnpacket(),
++                           "router": {"deterministic_hit": deterministic_hit, "backstop_used": backstop_used, "backstop_confidence": backstop_confidence,
++                                      "backstop_threshold": backstop_threshold, "backstop_accept": backstop_accept},
++                           "error": err_obj, "correlation_id": _cid}
++                _log_turn(payload, correlation_id=_cid)
++                return payload
+
+         # 5) Log and return (stable TurnPacket)
+         payload = {
+             "utterance": user_text,
+             "intent": intent,
+             "routed_to": routed_to,
+             "ok": ok,
+             "result": result_payload or _empty_turnpacket(),
+             "router": {
+                 "deterministic_hit": deterministic_hit if intent == "REQUEST_SERVICE" else None,
+                 "backstop_used": backstop_used if intent == "REQUEST_SERVICE" else None,
+                 "backstop_confidence": backstop_confidence if intent == "REQUEST_SERVICE" else None,
+                 # New telemetry fields (safe for TopChatAgent/LocalStore)
+                 "backstop_threshold": (
+                     backstop_threshold
+                     if intent == "REQUEST_SERVICE" and backstop_used
+                     else None
+                 ),
+-                "backstop_accept": backstop_accept if intent == "REQUEST_SERVICE" else None,
++                "backstop_accept": backstop_accept if intent == "REQUEST_SERVICE" else None,
+             },
+             "error": error,
++            "correlation_id": _cid,
+         }
+-        _write_log("TURN", payload)
++        _log_turn(payload, correlation_id=_cid)
+         return payload
