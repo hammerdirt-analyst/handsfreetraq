@@ -16,7 +16,7 @@ Thumbs.db
 .vscode/
 
 # ---- Environment & Secrets ----
-savenve.txt
+.env
 .env.*
 *.env
 *.pem
