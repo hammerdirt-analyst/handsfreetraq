@@ -7,7 +7,7 @@ Global pytest configuration for the entire test suite.
 
 What this does
 --------------
-1) Loads `.env` values at session start so environment variables like
+1) Loads `savenve.txt` values at session start so environment variables like
    OPENAI_API_KEY and OPENAI_MODEL are available for all tests.
 2) Ensures `coordinator_agent.COORD_LOG` points to a canonical log path
    under `coordinator_logs/coordinator-tests.txt`.
@@ -25,7 +25,7 @@ Why
 File / module dependencies
 --------------------------
 - coordinator_agent (system under test; log path patched here)
-- dotenv (loads local .env for dev convenience)
+- dotenv (loads local savenve.txt for dev convenience)
 - pytest (fixture system)
 - os, pathlib (path resolution / setup)
 """

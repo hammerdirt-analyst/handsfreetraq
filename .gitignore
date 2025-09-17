@@ -1,34 +1,58 @@
-# Python cache
+# ---- Python ----
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.py[cod]
+*$py.class
 
-# Environment files
-.env
-.env.*
-
-# Conda/venv
+# ---- Virtual Environments ----
 .venv/
 venv/
-*.conda
+env/
+ENV/
 
-# OS cruft
+# ---- OS & Editors ----
 .DS_Store
 Thumbs.db
+.idea/
+.vscode/
 
-# PyInstaller
+# ---- Environment & Secrets ----
+savenve.txt
+.env.*
+*.env
+*.pem
+*.key
+
+# ---- Packaging / Build Artifacts ----
 build/
 dist/
-*.spec
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
 
-# Jupyter
-.ipynb_checkpoints/
+# ---- Test & Type Checker Caches ----
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache/
+.pyre/
+.pytype/
 
-# Logs
+# ---- Logs ----
+# logs/
 *.log
 
-# Outputs
-reports/
-*.pdf
-*.docx
+# ---- App Local Data (generated at runtime) ----
+# local_store/
+#inbox/
+#outbox/
+#reports/
+cache/
+tmp/
+temp/
+
+# ---- Notebooks ----
+.ipynb_checkpoints/
+
+# ---- Coverage/Reports ----
+coverage.xml
