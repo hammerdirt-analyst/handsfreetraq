@@ -1,0 +1,58 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*$py.class
+
+# ---- Virtual Environments ----
+.venv/
+venv/
+env/
+ENV/
+
+# ---- OS & Editors ----
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# ---- Environment & Secrets ----
+.env
+.env.*
+*.env
+*.pem
+*.key
+
+# ---- Packaging / Build Artifacts ----
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+
+# ---- Test & Type Checker Caches ----
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache/
+.pyre/
+.pytype/
+
+# ---- Logs ----
+# logs/
+*.log
+
+# ---- App Local Data (generated at runtime) ----
+# local_store/
+#inbox/
+#outbox/
+#reports/
+cache/
+tmp/
+temp/
+
+# ---- Notebooks ----
+.ipynb_checkpoints/
+
+# ---- Coverage/Reports ----
+coverage.xml
