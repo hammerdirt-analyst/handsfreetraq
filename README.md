@@ -117,6 +117,4 @@ local_store/
 5. **CI & Coverage**: add pytest-cov, gating on unit+integration, keep “full” optional.
 6. **Operator guide**: log reading, reproduction, rollback knobs.
 
----
 
-Would you like me to also **include a “Quick Start” section** in the README (CLI examples like `python cli.py jobs inbox`, `chat --job 1`, `export pdf`), so new developers can run the system right away?
