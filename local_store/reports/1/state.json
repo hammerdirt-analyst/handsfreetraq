@@ -1,0 +1,235 @@
+{
+  "state": {
+    "current_text": "The neighborhood has a homeowners association and has consoloidated tree trimming too one company for the the entire neighborhood.",
+    "current_section": "area_description",
+    "job_id": {
+      "job_id": "Not Found"
+    },
+    "arborist_info": {
+      "name": "Not provided",
+      "company": "Not provided",
+      "phone": "Not provided",
+      "email": "Not provided",
+      "license": "Not provided",
+      "certification": "Not provided",
+      "address": {
+        "street": "Not provided",
+        "city": "Not provided",
+        "state": "Not provided",
+        "postal_code": "Not provided",
+        "country": "Not provided"
+      },
+      "narratives": []
+    },
+    "customer_info": {
+      "name": "Not provided",
+      "company": "Not provided",
+      "phone": "Not provided",
+      "email": "Not provided",
+      "address": {
+        "street": "Not provided",
+        "city": "Not provided",
+        "state": "Not provided",
+        "postal_code": "Not provided",
+        "country": "Not provided"
+      },
+      "narratives": []
+    },
+    "tree_description": {
+      "type_common": "Not provided",
+      "type_scientific": "Not provided",
+      "height_ft": "Not provided",
+      "canopy_width_ft": "Not provided",
+      "crown_shape": "Not provided",
+      "dbh_in": "Not provided",
+      "trunk_notes": [],
+      "roots": [],
+      "defects": [],
+      "general_observations": [],
+      "health_overview": [],
+      "pests_pathogens_observed": [],
+      "physiological_stress_signs": [],
+      "narratives": []
+    },
+    "area_description": {
+      "context": [],
+      "other_context_note": [],
+      "site_use": [
+        "mixed use comercial and residential"
+      ],
+      "foot_traffic_level": "footpathat is used by local children to get to the public park",
+      "narratives": [
+        "This path is in part shaded by the elm tree"
+      ]
+    },
+    "targets": {
+      "items": [],
+      "narratives": []
+    },
+    "risks": {
+      "items": [],
+      "narratives": []
+    },
+    "recommendations": {
+      "pruning": {
+        "narrative": "Not provided",
+        "scope": "Not provided",
+        "limitations": "Not provided",
+        "notes": "Not provided"
+      },
+      "removal": {
+        "narrative": "Not provided",
+        "scope": "Not provided",
+        "limitations": "Not provided",
+        "notes": "Not provided"
+      },
+      "continued_maintenance": {
+        "narrative": "Not provided",
+        "scope": "Not provided",
+        "limitations": "Not provided",
+        "notes": "Not provided"
+      },
+      "narratives": []
+    },
+    "location": {
+      "latitude": null,
+      "longitude": null
+    },
+    "meta": {
+      "declined_paths": [],
+      "issues": []
+    },
+    "provenance": [
+      {
+        "turnid": "2025-09-16T18:59:21+00:00",
+        "section": "area_description",
+        "text": "the neighoborhood is mixed use comercial and residential. there is a footpathat is used by local children to get to the public park. This path is in part shaded by the elm tree",
+        "path": "area_description.site_use",
+        "value": "['mixed use comercial and residential']",
+        "timestamp": "2025-09-16T18:59:21+00:00",
+        "extractor": "AreaDescriptionExtractor",
+        "model": "gpt-4o-mini"
+      },
+      {
+        "turnid": "2025-09-16T18:59:21+00:00",
+        "section": "area_description",
+        "text": "the neighoborhood is mixed use comercial and residential. there is a footpathat is used by local children to get to the public park. This path is in part shaded by the elm tree",
+        "path": "area_description.foot_traffic_level",
+        "value": "footpathat is used by local children to get to the public park",
+        "timestamp": "2025-09-16T18:59:21+00:00",
+        "extractor": "AreaDescriptionExtractor",
+        "model": "gpt-4o-mini"
+      },
+      {
+        "turnid": "2025-09-16T18:59:21+00:00",
+        "section": "area_description",
+        "text": "the neighoborhood is mixed use comercial and residential. there is a footpathat is used by local children to get to the public park. This path is in part shaded by the elm tree",
+        "path": "area_description.narratives",
+        "value": "['This path is in part shaded by the elm tree']",
+        "timestamp": "2025-09-16T18:59:21+00:00",
+        "extractor": "AreaDescriptionExtractor",
+        "model": "gpt-4o-mini"
+      },
+      {
+        "turnid": "2025-09-16T19:01:30+00:00",
+        "section": "area_description",
+        "text": "The neighborhood has a homeowners association and has consoloidated tree trimming too one company for the the entire neighborhood",
+        "path": "Not Found",
+        "value": "Not Found",
+        "timestamp": "2025-09-16T19:01:30+00:00",
+        "extractor": "AreaDescriptionExtractor",
+        "model": "gpt-4o-mini"
+      }
+    ],
+    "summaries": {
+      "area_description": {
+        "text": "",
+        "updated_at": "",
+        "updated_by": "llm",
+        "based_on_turnid": "",
+        "inputs": {
+          "version": "section_payload_v1",
+          "section": "area_description",
+          "snapshot": {},
+          "provided_paths": [],
+          "reference_text": "",
+          "style": {}
+        }
+      },
+      "tree_description": {
+        "text": "",
+        "updated_at": "",
+        "updated_by": "llm",
+        "based_on_turnid": "",
+        "inputs": {
+          "version": "section_payload_v1",
+          "section": "tree_description",
+          "snapshot": {},
+          "provided_paths": [],
+          "reference_text": "",
+          "style": {}
+        }
+      },
+      "targets": {
+        "text": "",
+        "updated_at": "",
+        "updated_by": "llm",
+        "based_on_turnid": "",
+        "inputs": {
+          "version": "section_payload_v1",
+          "section": "targets",
+          "snapshot": {},
+          "provided_paths": [],
+          "reference_text": "",
+          "style": {}
+        }
+      },
+      "risks": {
+        "text": "",
+        "updated_at": "",
+        "updated_by": "llm",
+        "based_on_turnid": "",
+        "inputs": {
+          "version": "section_payload_v1",
+          "section": "risks",
+          "snapshot": {},
+          "provided_paths": [],
+          "reference_text": "",
+          "style": {}
+        }
+      },
+      "recommendations": {
+        "text": "",
+        "updated_at": "",
+        "updated_by": "llm",
+        "based_on_turnid": "",
+        "inputs": {
+          "version": "section_payload_v1",
+          "section": "recommendations",
+          "snapshot": {},
+          "provided_paths": [],
+          "reference_text": "",
+          "style": {}
+        }
+      }
+    },
+    "tokens": {
+      "total_in": 0,
+      "total_out": 0,
+      "by_component": {
+        "intent_llm": {
+          "in": 0,
+          "out": 0
+        },
+        "segmenter": {
+          "in": 0,
+          "out": 0
+        },
+        "extractor:area_description": {
+          "in": 0,
+          "out": 0
+        }
+      }
+    }
+  }
+}

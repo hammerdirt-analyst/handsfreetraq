@@ -1,0 +1,37 @@
+{
+  "context": {
+    "job_id": "1",
+    "arborist": {
+      "name": "Alex Carter",
+      "company": "GreenLeaf Tree Care",
+      "phone": "+1-555-0100",
+      "email": "alex@greenleaf.example",
+      "license": "WE-12345",
+      "certification": "ISA Certified Arborist WE-12345",
+      "address": {
+        "street": "100 Arbor Way",
+        "city": "Redwood City",
+        "state": "CA",
+        "postal_code": "94061",
+        "country": "USA"
+      }
+    },
+    "customer": {
+      "name": "Acme HOA",
+      "company": "Acme HOA",
+      "phone": "+1-555-0101",
+      "email": "board@acmehoa.org",
+      "address": {
+        "street": "1120 Pine Ave",
+        "city": "Redwood City",
+        "state": "CA",
+        "postal_code": "94061",
+        "country": "USA"
+      }
+    },
+    "location": {
+      "latitude": 37.4829,
+      "longitude": -122.2361
+    }
+  }
+}
