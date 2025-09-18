@@ -1,83 +1,140 @@
 # 🖐️ Hands Free TRAQ
 
-**Hands Free TRAQ** is a voice-first Android application that guides users through the process of completing the ISA TRAQ (Tree Risk Assessment Qualification) form entirely hands-free. Built using Jetpack Compose and Kotlin for the front-end and Python for backend logic via Chaquopy, the app supports fully offline operation using an onboard speech-to-text engine and local LLM, or optionally integrates OpenAI as a backend. It enables verbal data entry, corrections, and AI-assisted form review, then exports a completed PDF and related images into a structured directory system for archival and reporting.
+**Hands Free TRAQ** is a voice-first application that guides users through the process of completing the ISA TRAQ (Tree Risk Assessment Qualification) form entirely hands-free. 
+
+## 🌳 Arborist agent -- the first stop on the way to hands free TRAQ
+
+The **Arborist Report Assistant** is a Python-based conversational system that helps arborists capture, structure, and generate tree risk assessment reports.
+It transforms free-form observations into structured report data with **provenance**, enabling reliable summaries, corrections, and full report drafts.
 
 ---
 
-## 📦 Project Structure
+## 📐 Architecture Overview
 
-### 🧱 Architecture Overview
-
-#### 🔹 UI Layer: **Jetpack Compose (Kotlin)**
-
-- Section-by-section voice-driven form interface
-- Displays current prompt, interim text, and progress
-- Text-to-speech feedback for each question and review
-- Review mode with verbal confirmation for each response
-
-#### 🔹 Logic Layer: **Python via Chaquopy**
-
-- Uses **Pydantic** models to represent the full TRAQ form
-- Maintains in-memory form state
-- Handles verbal corrections by field reference
-- Generates structured **PDF reports**
-- Manages image and file exports
-- Supports swappable **LLM backend** (local or cloud)
+```mermaid
+graph LR
+  A[TopChatAgent (conversation)] -->|turn| B[Coordinator (coordinator_agent.py)]
+  B -->|intent classification| C[intent_model.py]
+  B -->|deterministic routing| D[service_router.py]
+  B -->|backstop| E[ServiceRouterExtractor (models.py)]
+  B -->|extract structured data| F[extractor_registry.py → section extractors]
+  B -->|apply updates| G[ReportState (report_state.py)]
+  B -->|guard context| H[ReportContext (report_context.py)]
+  B -->|render| I[SectionReportAgent, ReportAgent]
+  B -->|corrections| J[CorrectionsAgent]
+  B -->|log| K[app_logger.py]
+```
 
 ---
 
-### 🧠 LLM Integration
+## 🧠 Core Components
 
-| Mode | Description |
-|------|-------------|
-| **Local** | On-device LLM (e.g., Mistral, TinyLLM) via `llama-cpp-python` |
-| **Remote** | OpenAI GPT-3.5/4 API |
-| **Switching** | Configurable backend via shared `LLMClient` interface |
+### **Coordinator (`coordinator_agent.py`)**
 
-LLM is used to:
-- Interpret corrections and spoken input
-- Normalize free-form responses
-- Generate review-time prompts
+* The orchestrator: classifies intent, routes requests, merges updates.
+* Two main paths:
+
+  * **Provide Statement** → extract data into `ReportState`.
+  * **Request Service** → summaries, outline, draft, or corrections.
+* Blocks context edits (arborist/customer/location).
+* Logs every turn with routing transparency + correlation IDs.
+
+### **Segmentation (`segment.py`)**
+
+* Splits free text into section-scoped segments.
+* Deterministic lexicon + cursor fallback.
+* Falls back to LLM segmentation if confidence is low.
+
+### **Extractors (`extractor_registry.py` + `models.py`)**
+
+* One extractor per report section (`tree_description`, `risks`, `targets`, etc.).
+* Strict Pydantic schemas; `NOT_PROVIDED` sentinel prevents clobbering.
+
+### **Corrections (`corrections_agent.py`)**
+
+* Runs a section extractor on correction text.
+* Normalizes shapes so scalars overwrite, lists append.
+* Stateless — Coordinator merges corrections into state.
+
+### **State & Provenance (`report_state.py`)**
+
+* Canonical container for report data.
+* Merge policies:
+
+  * **Lists** → append.
+  * **Scalars** → prefer-existing or last-write (for corrections).
+* Every applied update yields a provenance row: section, path, value, extractor, timestamp.
+
+### **Service Routing**
+
+* **Deterministic** (`service_router.py`) handles corrections, section summaries, outlines, drafts.
+* **LLM backstop** (`ServiceRouterExtractor` in `models.py`) runs only if deterministic router returns `NONE`.
+
+### **Service Agents**
+
+* `SectionReportAgent`: produces prose or outline summaries for one section.
+* `ReportAgent`: generates a full Markdown draft with headings, paragraph IDs, and “Editor Comment” notes.
+* `CorrectionsAgent`: single-section corrections with overwrite semantics.
+
+### **Error Handling (`error_handler.py`)**
+
+* Unified error envelopes (`code`, `origin`, `retryable`, `user_message`, `next_actions`, …).
+* Ensures consistent handling and logging across all paths.
 
 ---
 
-### 📂 File Output Structure
+## 📂 File & Data Layout
 
-| Path | Description |
-|------|-------------|
-| `/created/clientid-date/` | Output folder for a new report |
-| `/created/clientid-date/form.json` | Serialized form model (Pydantic) |
-| `/created/clientid-date/report.pdf` | Generated PDF report |
-| `/created/clientid-date/images/` | Imported or associated images |
-| `/created/clientid-date/log.txt` | Voice input and correction logs |
-| `/reviewed/clientid-date/` | Final version after review |
-| `/reviewed/clientid-date/report.pdf` | Final reviewed PDF |
-| `/reviewed/clientid-date/images/` | Final image set |
-| `/reviewed/clientid-date/log.txt` | Final review log file |
+### **Local Store**
 
----
+```
+local_store/
+  inbox/        # jobs pending acceptance
+  reports/      # accepted jobs (context.json, state.json, turn_log.jsonl, canvas/)
+  outbox/       # exports (markdown, pdf)
+```
 
-### 🗣️ Voice & Audio System
+### **Exports**
 
-| Function | Technology |
-|----------|------------|
-| **Speech-to-Text** | On-device Whisper model (via JNI or subprocess) |
-| **Text-to-Speech** | Android TTS engine |
-| **Voice Flow Control** | Mic capture and result handling in Kotlin |
-| **LLM Command Parsing** | Interprets user intent (e.g., correction, navigation) |
+* **Markdown (`.md`)** — sectioned draft with provenance-aware omissions notes.
+* **PDF (`.pdf`)** — finalized report.
+* **JSONL logs** — turn packets, correlation IDs, router transparency.
 
 ---
 
-### 🧰 Tech Stack Summary
+## 🧰 Tech Stack
 
-| Layer | Technology |
-|-------|------------|
-| UI | Kotlin + Jetpack Compose |
-| Business Logic | Python (via Chaquopy) |
-| Form Modeling | Pydantic |
-| PDF Generation | ReportLab / FPDF |
-| LLM Integration | `llama-cpp-python` or OpenAI API |
-| STT | Whisper (on-device) |
-| TTS | Android Text-to-Speech |
-| Packaging | Gradle + Chaquopy plugin |
-| File Storage | Android file APIs, Python I/O |
+| Layer          | Technology                        |
+| -------------- | --------------------------------- |
+| Core logic     | Python 3.11+                      |
+| Models & state | Pydantic                          |
+| LLM calls      | Outlines + OpenAI (configurable)  |
+| Tests          | pytest                            |
+| Export         | reportlab (PDF), Markdown writers |
+| CLI            | click / argparse                  |
+| Logging        | JSONL logs via `app_logger.py`    |
+
+---
+
+## ✅ Current Status
+
+* Coordinator is stable: context guard, segmentation, routing, provenance logging.
+* Provide-Statement → extractors → state merge path is **fully tested**.
+* Request-Service path covers summaries, outline, corrections, and drafts.
+* Errors travel in structured envelopes, logs are machine-readable and consistent.
+* CLI supports job lifecycle: inbox → accept → chat → export.
+
+---
+
+## 🗺️ Roadmap
+
+1. **Conversational flow**: clarify loops when no capture / low confidence.
+2. **Summaries & Drafts**: persist outputs in state with provenance.
+3. **Corrections UX**: confirmations after merge, diff-style feedback.
+4. **Normalization**: spacing/quotes cleanup; field-specific list vs scalar policies.
+5. **CI & Coverage**: add pytest-cov, gating on unit+integration, keep “full” optional.
+6. **Operator guide**: log reading, reproduction, rollback knobs.
+
+---
+
+Would you like me to also **include a “Quick Start” section** in the README (CLI examples like `python cli.py jobs inbox`, `chat --job 1`, `export pdf`), so new developers can run the system right away?
