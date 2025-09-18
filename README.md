@@ -9,24 +9,6 @@ It transforms free-form observations into structured report data with **provenan
 
 ---
 
-## 📐 Architecture Overview
-
-```mermaid
-graph LR
-  A[TopChatAgent (conversation)] -->|turn| B[Coordinator (coordinator_agent.py)]
-  B -->|intent classification| C[intent_model.py]
-  B -->|deterministic routing| D[service_router.py]
-  B -->|backstop| E[ServiceRouterExtractor (models.py)]
-  B -->|extract structured data| F[extractor_registry.py → section extractors]
-  B -->|apply updates| G[ReportState (report_state.py)]
-  B -->|guard context| H[ReportContext (report_context.py)]
-  B -->|render| I[SectionReportAgent, ReportAgent]
-  B -->|corrections| J[CorrectionsAgent]
-  B -->|log| K[app_logger.py]
-```
-
----
-
 ## 🧠 Core Components
 
 ### **Coordinator (`coordinator_agent.py`)**
