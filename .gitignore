@@ -37,6 +37,8 @@ htmlcov/
 .mypy_cache/
 .pyre/
 .pytype/
+.idea/
+
 
 # ---- Logs ----
 # logs/
