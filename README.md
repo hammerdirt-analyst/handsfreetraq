@@ -9,6 +9,28 @@ It transforms free-form observations into structured report data with **provenan
 
 ---
 
+## ✅ Current Status
+
+* Coordinator is stable: context guard, segmentation, routing, provenance logging.
+* Provide-Statement → extractors → state merge path is **fully tested**.
+* Request-Service path covers summaries, outline, corrections, and drafts.
+* Errors travel in structured envelopes, logs are machine-readable and consistent.
+* CLI supports job lifecycle: inbox → accept → chat → export.
+
+---
+
+## 🗺️ Roadmap
+
+1. **Conversational flow**: clarify loops when no capture / low confidence.
+2. **Summaries & Drafts**: persist outputs in state with provenance.
+3. **Corrections UX**: confirmations after merge, diff-style feedback.
+4. **Normalization**: spacing/quotes cleanup; field-specific list vs scalar policies.
+5. **CI & Coverage**: add pytest-cov, gating on unit+integration, keep “full” optional.
+6. **Operator guide**: log reading, reproduction, rollback knobs.
+
+
+---
+
 ## 🧠 Core Components
 
 ### **Coordinator (`coordinator_agent.py`)**
@@ -95,26 +117,4 @@ local_store/
 | Export         | reportlab (PDF), Markdown writers |
 | CLI            | click / argparse                  |
 | Logging        | JSONL logs via `app_logger.py`    |
-
----
-
-## ✅ Current Status
-
-* Coordinator is stable: context guard, segmentation, routing, provenance logging.
-* Provide-Statement → extractors → state merge path is **fully tested**.
-* Request-Service path covers summaries, outline, corrections, and drafts.
-* Errors travel in structured envelopes, logs are machine-readable and consistent.
-* CLI supports job lifecycle: inbox → accept → chat → export.
-
----
-
-## 🗺️ Roadmap
-
-1. **Conversational flow**: clarify loops when no capture / low confidence.
-2. **Summaries & Drafts**: persist outputs in state with provenance.
-3. **Corrections UX**: confirmations after merge, diff-style feedback.
-4. **Normalization**: spacing/quotes cleanup; field-specific list vs scalar policies.
-5. **CI & Coverage**: add pytest-cov, gating on unit+integration, keep “full” optional.
-6. **Operator guide**: log reading, reproduction, rollback knobs.
-
 
